@@ -1,0 +1,29 @@
+{
+  "name": "Algo Studio",
+  "short_name": "Algo Studio",
+  "description": "Offline coding interview coach with 120-Day SWE/FDE Plan, LeetCode Top 150, Grind 75/70, NeetCode 150, SQL 50, Python Tutor visualiser, Pressure Recall Drills, and Mock/OA simulators.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0284C7",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
