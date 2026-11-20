@@ -2,22 +2,22 @@
 
 Offline coding interview workbench built for Chromebooks (zero Terminal required) as well as Windows, macOS, and Linux. Practise all 406 problems across 6 structured courses with no account sign-in and no package installs.
 
-## Quick start on Chromebook (no Terminal needed)
+## Quick start on Chromebook (auto-updating offline app)
 
-If your Chromebook does not have Linux Terminal access, use the single self-contained file `AlgoStudio.html` (under 1 MB) directly in Chrome:
+The easiest way to run Algo Studio on ChromeOS is the installable Progressive Web App hosted via GitHub Pages at https://elim316.github.io/algo-studio/ :
 
-1. Open this repository (`https://github.com/elim316/algo-studio`) in Chrome on your Chromebook and click `AlgoStudio.html` in the file list.
-2. Click the Download raw file icon at the top right of the file view (or press `Ctrl+S` on the Raw view) to save `AlgoStudio.html` into your Chromebook `Downloads` folder.
-3. Open the ChromeOS Files app, go to `Downloads`, and double-click `AlgoStudio.html`. It opens straight in Chrome with zero setup.
+1. Open https://elim316.github.io/algo-studio/ in Chrome on your Chromebook.
+2. Click the Install icon on the right side of the Chrome address bar to add Algo Studio as a standalone app on your Chromebook Shelf.
+3. Run one Python or SQL 50 problem while online once so the Service Worker caches the Pyodide WebAssembly runtime on your Chromebook.
 
-How single-file mode works:
-- Instant offline browsing and study: all 406 problems, 6 courses, 601 hidden edge cases, 9-domain edge-case playbook, Guided Coaching, Pressure Recall Drills, and native TypeScript execution load immediately from the file itself.
-- In-browser Python 3 and SQLite 3: the first time you run a Python or SQL 50 solution (or click Analyse / AI Co-Pilot), Chrome loads the Pyodide WebAssembly Python 3 and SQLite 3 runtime (~12 MB) directly inside the browser tab and caches it automatically for subsequent runs.
-- Persistent Chromebook progress: solved questions, passed submission history, course positions, code drafts, bookmarks, notes, drill high scores, and mock/OA history save automatically in browser `localStorage`. Click `Export` in the top toolbar anytime to download a JSON backup to `Downloads`, or `Import` to restore it on another device.
+How auto-updates and offline mode work:
+- Automatic updates on every push: whenever changes are pushed to `main`, GitHub Actions automatically rebuilds and publishes the PWA. The next time you open Algo Studio while online, the Service Worker updates the app silently in the background (or shows a 1-click `Update Now` banner if a tab is already open).
+- Full offline support: the Service Worker caches both the complete 406-problem workbench and the Pyodide Python 3 / SQLite 3 runtime in separate browser caches, so updating the app never forces re-downloading Pyodide and everything continues working offline without Wi-Fi.
+- Your progress stays strictly on your device: GitHub Pages serves only the static app and problem catalog. All solved checkmarks, passed submissions, code drafts, notes, bookmarks, last visited question, drill high scores, and mock/OA history live exclusively in your Chromebook's local `localStorage` and are never uploaded. Click `Export` in the top toolbar anytime for a JSON backup or `Import` to restore on another device.
 
 ## Courses included
 
-Switch courses anytime from the Course dropdown next to the problem selector. Solved progress stays synchronised across every course by LeetCode problem number.
+Switch courses anytime from the Course dropdown next to the problem selector. Solved progress and passed submissions stay synchronised across every course by LeetCode problem number.
 
 - Our 120-Day List: 120 progressive SWE and FDE interview problems across 16 phases covering 86 algorithmic and systems topics, paired with 601 hidden edge-case tests and a 9-domain edge-case playbook.
 - LeetCode Top 150: all 150 official interview problems organised across 23 categories.
@@ -27,45 +27,29 @@ Switch courses anytime from the Course dropdown next to the problem selector. So
 
 ## Built-in practice tools
 
-- Live code execution: Python 3 (including `ListNode`, `TreeNode`, Graph `Node`, `QuadTree`, and class-design harnesses), TypeScript, and SQLite 3 run directly in Chrome in single-file mode, or locally via the Python 3 server (plus optional Go when installed).
-- Passed submissions history and Practise Again: only solutions that pass all tests and are submitted are saved under `Submissions (N)` (synchronised across courses by LeetCode problem number). Click `Practise Again` to reset to starter code without losing your saved answers, and click `Revert to Latest Passed` or `Revert to Editor` on any past accepted submission to restore it anytime.
+- Live code execution: Python 3 (including `ListNode`, `TreeNode`, Graph `Node`, `QuadTree`, and class-design harnesses), TypeScript, and SQLite 3 run directly in Chrome, or locally via the Python 3 server (plus optional Go when installed).
+- Passed submissions history and Practise Again: only solutions that pass all tests and are submitted are saved under `Submissions (N)` (synchronised across courses by LeetCode problem number). Clicking `Submit` stays on the current question by default (with an optional `Submit & Next` button in the passing banner), and Algo Studio remembers your exact last visited question across reloads even if it is already solved. Click `Practise Again` to reset to starter code without losing saved answers, and `Revert to Latest Passed` or `Revert to Editor` to restore any past pass anytime.
 - Resizable Python Tutor memory visualiser: side-by-side traced code pane, call stack frames, heap object tables, pointer arrows, clickable gutter breakpoints, `Fit Code`, font/wrap controls, drag handles, and full-window `Expand` mode.
 - Guided Coaching and 20-check rubric scorer: 3-tier progressive hints, mental-model pivots, and a transparent 100-point rubric explaining how to earn full marks.
 - Timed Pressure Recall Drills: Line Recall, Token Blitz, and Blind Master drills with countdown timers, lives, streak multipliers, and saved high scores.
 - Mock Interview and 75-minute OA Simulator: 4-stage 45-minute technical interview simulator and 3-question 75-minute online assessment simulator (Easy DSA, Medium DSA, and SQL 50).
 - Offline AST mentor and Copy for AI: built-in offline debugging assistant with 5 structured prompt modes (`Full Tutor`, `Hints Only`, `Debug Bug`, `Big-O Only`, `Trace Table`), plus optional `GEMINI_API_KEY` support when running the local Python server online.
 
-## Optional: local server mode (100% air-gapped offline + Go support)
+## Alternative: single-file download (`AlgoStudio.html`)
 
-If you have Terminal access on Windows, macOS, Linux, or ChromeOS Linux and want 100% air-gapped Python 3 execution from the very first run (plus local Go compilation and `data/progress.json` file storage):
+If you prefer a standalone file with no web hosting, download `AlgoStudio.html` from this repository into your Chromebook `Downloads` folder and double-click it in ChromeOS Files.
 
-### Chromebook with Linux enabled
+## Alternative: local server mode (air-gapped offline + Go support)
 
-1. Open ChromeOS Settings, go to About ChromeOS, open Developers, and turn on Linux development environment.
-2. Open the Terminal app (Penguin) and run:
+If you have Terminal access on Windows, macOS, Linux, or ChromeOS Linux and want local file-based `data/progress.json` storage plus Go compilation:
 
-```bash
-git clone https://github.com/elim316/algo-studio.git
-cd algo-studio
-./start.sh
-```
+- macOS, Linux, or ChromeOS Linux: clone the repository and run `./start.sh` (or double-click `Algo Studio.command` on macOS).
+- Windows: install Python 3, clone the repository, and double-click `Algo Studio.bat`.
 
-3. Optional: run `./install-chromebook-app.sh` once inside `algo-studio` to add Algo Studio to your Chromebook Launcher.
-
-### Windows
-
-1. Install Python 3 from https://www.python.org/downloads/ (tick "Add python.exe to PATH") and Git.
-2. Clone the repository and double-click `Algo Studio.bat`.
-
-### macOS or Linux
-
-1. Clone the repository and run `./start.sh` (or double-click `Algo Studio.command` on macOS).
-
-## Rebuilding the single-file bundle and running tests
-
-After editing any backend or frontend file, regenerate `AlgoStudio.html` and run the verification suite:
+## Rebuilding bundles and running tests
 
 ```bash
 python3 build_single_html.py
+python3 build_single_html.py --pwa-dir dist
 python3 test_server.py -v
 ```

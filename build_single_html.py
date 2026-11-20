@@ -14,10 +14,13 @@ opens the complete Algo Studio workbench directly via file:// with:
 
 from __future__ import annotations
 
+import argparse
 import base64
 import gzip
+import hashlib
 import json
 from pathlib import Path
+import shutil
 import sys
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -993,8 +996,8 @@ pyodide_shim.install_browser_patches()
                 switchCourse(targetCourse, { problemId: targetPid, skipFlush: true, skipPersist: true });
               } else {
                 state.activeCourse = 'schedule-120';
-                state.activeDay = Number(state.progress.currentDay || 1);
-                state.activeCuratedProblemId = null;
+                state.activeDay = Number(state.progress.lastVisited?.day || state.progress.currentDay || 1);
+                state.activeCuratedId = null;
                 renderHeaderStats();
                 populateSelectors();
                 renderActiveProblem();
@@ -1012,13 +1015,176 @@ pyodide_shim.install_browser_patches()
 '''
 
 
+PWA_SW_TEMPLATE = r'''/* Algo Studio Offline-First Auto-Updating Service Worker (Build __BUILD_HASH__) */
+const APP_CACHE = 'algo-studio-pwa-__BUILD_HASH__';
+const PYODIDE_CACHE = 'algo-studio-pyodide-v__PYODIDE_VERSION__';
+const FONT_CACHE = 'algo-studio-fonts-v1';
+const APP_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './favicon.svg',
+  './icon-192.png',
+  './icon-512.png',
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(APP_CACHE).then((cache) => cache.addAll(APP_ASSETS))
+  );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+self.addEventListener('activate', (event) => {
+  const keep = new Set([APP_CACHE, PYODIDE_CACHE, FONT_CACHE]);
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((k) => k.startsWith('algo-studio-') && !keep.has(k))
+          .map((k) => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+
+  /* 1. Pyodide WebAssembly & SQLite 3 assets: Cache-First so Python/SQL work 100% offline */
+  if (url.origin === 'https://cdn.jsdelivr.net' && url.pathname.includes('/pyodide/v__PYODIDE_VERSION__/')) {
+    event.respondWith(
+      caches.open(PYODIDE_CACHE).then((cache) =>
+        cache.match(req).then((cached) => {
+          if (cached) return cached;
+          return fetch(req).then((resp) => {
+            if (resp && (resp.ok || resp.type === 'opaque')) {
+              cache.put(req, resp.clone()).catch(() => {});
+            }
+            return resp;
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  /* 2. Google Fonts: Stale-While-Revalidate */
+  if (url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com') {
+    event.respondWith(
+      caches.open(FONT_CACHE).then((cache) =>
+        cache.match(req).then((cached) => {
+          const networkFetch = fetch(req).then((resp) => {
+            if (resp && (resp.ok || resp.type === 'opaque')) {
+              cache.put(req, resp.clone()).catch(() => {});
+            }
+            return resp;
+          }).catch(() => cached);
+          return cached || networkFetch;
+        })
+      )
+    );
+    return;
+  }
+
+  /* 3. Same-origin app shell under this SW scope: Network-First for fast auto-updates, Cache fallback for offline */
+  if (url.origin === self.location.origin && req.url.startsWith(self.registration.scope)) {
+    event.respondWith(
+      fetch(req)
+        .then((resp) => {
+          if (resp && resp.ok) {
+            const copy = resp.clone();
+            caches.open(APP_CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+          }
+          return resp;
+        })
+        .catch(() =>
+          caches.match(req).then((cached) => {
+            if (cached) return cached;
+            if (req.mode === 'navigate') return caches.match('./index.html');
+            return undefined;
+          })
+        )
+    );
+  }
+});
+'''
+
+PWA_UPDATER_JS = r'''
+    (function __initAlgoStudioPwaUpdater() {
+      if (!('serviceWorker' in navigator)) return;
+      if (window.location.protocol !== 'https:' && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
+        return;
+      }
+      let refreshing = false;
+      function showUpdateBanner(waitingWorker) {
+        if (!waitingWorker || document.getElementById('pwa-update-toast')) return;
+        const toast = document.createElement('div');
+        toast.id = 'pwa-update-toast';
+        toast.style.cssText =
+          'position:fixed; right:16px; bottom:16px; z-index:9999; display:flex; align-items:center; gap:8px; ' +
+          'padding:9px 12px; border-radius:10px; background:var(--surface); color:var(--fg); ' +
+          'border:1px solid var(--border-col); box-shadow:0 8px 24px rgba(15,23,42,0.16); font-size:12px;';
+        toast.innerHTML =
+          '<span style="font-weight:600;">New Algo Studio update ready</span>' +
+          '<button type="button" id="pwa-update-now-btn" class="btn-primary" style="padding:3px 10px; font-size:11.5px;">Update Now</button>' +
+          '<button type="button" id="pwa-update-later-btn" style="padding:3px 8px; font-size:11.5px;">Later</button>';
+        document.body.appendChild(toast);
+        document.getElementById('pwa-update-now-btn')?.addEventListener('click', () => {
+          try { window.AlgoStudioBridge?.flushDraftSaveNow?.(); } catch (_) {}
+          waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+        });
+        document.getElementById('pwa-update-later-btn')?.addEventListener('click', () => {
+          toast.remove();
+        });
+      }
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' }).then((reg) => {
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            showUpdateBanner(reg.waiting);
+          }
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                showUpdateBanner(newWorker);
+              }
+            });
+          });
+          reg.update().catch(() => {});
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && navigator.onLine) {
+              reg.update().catch(() => {});
+            }
+          });
+        }).catch(() => {});
+      });
+    })();
+'''
+
+
 def _gzip_b64_json(obj: object) -> str:
     raw = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     compressed = gzip.compress(raw, compresslevel=9)
     return base64.b64encode(compressed).decode("ascii")
 
 
-def build_single_html(output_path: Path | None = None) -> Path:
+def build_single_html(output_path: Path | None = None, pwa_mode: bool = False) -> Path:
     out_file = output_path or (ROOT_DIR / "AlgoStudio.html")
     index_html = (ROOT_DIR / "public" / "index.html").read_text(encoding="utf-8")
     studio_v2_js = (ROOT_DIR / "public" / "studio_v2.js").read_text(encoding="utf-8")
@@ -1053,16 +1219,25 @@ def build_single_html(output_path: Path | None = None) -> Path:
 
     html = index_html
 
-    # 3. Inline favicon as data URI and strip HTTP-only manifest/icon/preload references
-    for target, repl in (
+    # 3. Inline favicon (and either keep relative PWA manifest/icon links or strip them for file://)
+    head_replacements = [
         ('content="/favicon.svg"', f'content="{favicon_data_uri}"'),
         ('href="/favicon.svg"', f'href="{favicon_data_uri}"'),
         ('src="/favicon.svg"', f'src="{favicon_data_uri}"'),
-        ('  <link rel="apple-touch-icon" href="/icon-192.png">\n', ""),
-        ('  <link rel="manifest" href="/manifest.json">\n', ""),
         ('  <script src="/preload.js"></script>\n', ""),
         ('id="popout-btn" href="/"', 'id="popout-btn" href="#"'),
-    ):
+    ]
+    if pwa_mode:
+        head_replacements.extend([
+            ('  <link rel="apple-touch-icon" href="/icon-192.png">\n', '  <link rel="apple-touch-icon" href="./icon-192.png">\n'),
+            ('  <link rel="manifest" href="/manifest.json">\n', '  <link rel="manifest" href="./manifest.json">\n'),
+        ])
+    else:
+        head_replacements.extend([
+            ('  <link rel="apple-touch-icon" href="/icon-192.png">\n', ""),
+            ('  <link rel="manifest" href="/manifest.json">\n', ""),
+        ])
+    for target, repl in head_replacements:
         if target not in html:
             raise RuntimeError(f"Expected anchor not found in public/index.html: {target!r}")
         html = html.replace(target, repl, 1)
@@ -1113,6 +1288,7 @@ def build_single_html(output_path: Path | None = None) -> Path:
         raise RuntimeError("Could not locate tail script block in public/index.html")
 
     safe_studio_v2_js = studio_v2_js.replace("</script", "<\\/script")
+    pwa_tail_js = PWA_UPDATER_JS if pwa_mode else ""
     tail_repl = (
         "    __wireBackupRestoreButtons();\n"
         "    window.AlgoStudioBridge.bootSingleFile = () => init();\n"
@@ -1122,16 +1298,71 @@ def build_single_html(output_path: Path | None = None) -> Path:
         + "\n  </script>\n"
         "  <script>\n"
         "    window.AlgoStudioBridge.bootSingleFile();\n"
-        "  </script>\n"
+        + pwa_tail_js
+        + "  </script>\n"
         "</body>"
     )
     html = html.replace(tail_anchor, tail_repl, 1)
 
+    out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(html, encoding="utf-8")
     return out_file
 
 
+def build_pwa_dir(pwa_dir: Path) -> tuple[Path, str]:
+    """Build a static, offline-capable, auto-updating PWA directory for GitHub Pages."""
+    pwa_dir.mkdir(parents=True, exist_ok=True)
+    index_out = build_single_html(output_path=pwa_dir / "index.html", pwa_mode=True)
+    build_hash = hashlib.sha256(index_out.read_bytes()).hexdigest()[:12]
+
+    for asset_name in ("favicon.svg", "icon-192.png", "icon-512.png"):
+        src_asset = ROOT_DIR / "public" / asset_name
+        if src_asset.is_file():
+            shutil.copy2(src_asset, pwa_dir / asset_name)
+
+    manifest = {
+        "id": "./",
+        "name": "Algo Studio",
+        "short_name": "Algo Studio",
+        "description": (
+            "Offline coding interview workbench covering 406 problems across 6 courses "
+            "with in-browser Python 3, SQLite 3, TypeScript, Python Tutor visualiser, "
+            "and passed submissions history."
+        ),
+        "start_url": "./",
+        "scope": "./",
+        "display": "standalone",
+        "background_color": "#F8FAFC",
+        "theme_color": "#0284C7",
+        "icons": [
+            {"src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            {"src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml"},
+        ],
+    }
+    (pwa_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+    sw_js = (
+        PWA_SW_TEMPLATE
+        .replace("__BUILD_HASH__", build_hash)
+        .replace("__PYODIDE_VERSION__", PYODIDE_VERSION)
+    )
+    (pwa_dir / "sw.js").write_text(sw_js, encoding="utf-8")
+    (pwa_dir / ".nojekyll").write_text("", encoding="utf-8")
+    return pwa_dir, build_hash
+
+
 if __name__ == "__main__":
-    built = build_single_html()
-    size_kb = built.stat().st_size / 1024.0
-    print(f"Built {built} ({size_kb:.1f} KB / {size_kb / 1024.0:.2f} MB)")
+    parser = argparse.ArgumentParser(description="Build AlgoStudio.html single-file bundle and/or GitHub Pages PWA.")
+    parser.add_argument("--output", type=Path, default=None, help="Output path for single-file HTML (default: AlgoStudio.html)")
+    parser.add_argument("--pwa-dir", type=Path, default=None, help="Build offline auto-updating PWA directory for GitHub Pages")
+    args = parser.parse_args()
+
+    if args.pwa_dir is not None:
+        out_dir, bhash = build_pwa_dir(args.pwa_dir)
+        idx_kb = (out_dir / "index.html").stat().st_size / 1024.0
+        print(f"Built PWA in {out_dir} (index.html={idx_kb:.1f} KB, sw cache={bhash})")
+    else:
+        built = build_single_html(output_path=args.output, pwa_mode=False)
+        size_kb = built.stat().st_size / 1024.0
+        print(f"Built {built} ({size_kb:.1f} KB / {size_kb / 1024.0:.2f} MB)")
