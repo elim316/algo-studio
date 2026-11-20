@@ -1621,12 +1621,81 @@
 
     .pt-workspace-split {
       display: grid;
-      grid-template-columns: var(--pt-code-col-w, minmax(225px, 0.96fr)) 6px minmax(275px, 1.18fr);
+      grid-template-columns: var(--pt-code-col-w, minmax(225px, 1.05fr)) 10px minmax(180px, 1.1fr);
       gap: 2px;
       align-items: stretch;
-      height: var(--vis-box-h, 290px);
+      height: var(--vis-box-h, 340px);
       min-height: 215px;
       max-width: 100%;
+    }
+
+    .pt-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 84;
+      display: none;
+    }
+
+    .pt-modal-backdrop.open {
+      display: block;
+    }
+
+    .visualiser-stage.pt-expanded-modal {
+      position: fixed;
+      inset: 14px;
+      z-index: 85;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 28px);
+      max-height: calc(100vh - 28px);
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(15, 23, 42, 0.34);
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--border-col));
+    }
+
+    .visualiser-stage.pt-expanded-modal .pt-workspace-split {
+      flex: 1 1 auto;
+      height: auto !important;
+      min-height: 0;
+    }
+
+    .visualiser-stage.pt-expanded-modal .pt-vis-resizer-bar {
+      display: none;
+    }
+
+    .box-resizer-bar.pt-vis-resizer-bar {
+      height: 18px;
+      margin-top: 2px;
+      gap: 8px;
+      border: 1px dashed color-mix(in srgb, var(--border-col) 85%, transparent);
+      background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+      font-size: 10.5px;
+      font-weight: 550;
+      color: var(--fg-muted);
+    }
+
+    .box-resizer-bar.pt-vis-resizer-bar::after {
+      display: none;
+    }
+
+    .pt-code-mini-btn {
+      padding: 1px 6px;
+      font-size: 10.5px;
+      line-height: 1.3;
+      border-radius: 4px;
+    }
+
+    .pt-code-lines.pt-code-wrap .pt-code-line {
+      width: 100%;
+      align-items: start;
+    }
+
+    .pt-code-lines.pt-code-wrap .pt-code-src {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     .pt-workspace-split.pt-code-hidden {
@@ -1841,23 +1910,23 @@
     }
 
     .pt-split-resizer {
-      width: 6px;
+      width: 10px;
       cursor: col-resize;
       display: flex;
       align-items: center;
       justify-content: center;
       user-select: none;
       touch-action: none;
-      border-radius: 3px;
+      border-radius: 4px;
       transition: background-color 150ms var(--ease-out);
     }
 
     .pt-split-resizer::after {
       content: "";
-      width: 2px;
-      height: 36px;
-      border-radius: 2px;
-      background: var(--border-col);
+      width: 3px;
+      height: 44px;
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--fg-muted) 45%, var(--border-col));
       transition: background-color 150ms var(--ease-out), height 150ms var(--ease-out);
     }
 
@@ -1892,7 +1961,7 @@
 
     @media (max-width: 760px) {
       .pt-workspace-split {
-        grid-template-columns: var(--pt-code-col-w, minmax(185px, 0.92fr)) 6px minmax(225px, 1.12fr);
+        grid-template-columns: var(--pt-code-col-w, minmax(175px, 1fr)) 10px minmax(150px, 1.1fr);
         gap: 2px;
       }
       .pt-stage-wrap {
@@ -1921,10 +1990,14 @@
         display: none;
       }
       .pt-code-pane {
-        height: 180px;
+        height: 220px;
+        min-height: 140px;
+        resize: vertical;
       }
       .pt-stage-wrap {
-        height: 220px;
+        height: 240px;
+        min-height: 160px;
+        resize: vertical;
       }
     }
 
@@ -3681,6 +3754,8 @@
                 </div>
                 <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
                   <button type="button" id="pt-toggle-code-btn" class="btn-subtle-accent" style="padding:3px 8px; font-size:11.5px;" title="Show or hide the side-by-side traced code pane">Code Pane ◫</button>
+                  <button type="button" id="pt-fit-height-btn" style="padding:3px 8px; font-size:11.5px;" title="Automatically size the visualiser height to fit all lines of traced code">Fit Code</button>
+                  <button type="button" id="pt-expand-modal-btn" style="padding:3px 8px; font-size:11.5px;" title="Expand Python Tutor visualiser to fill the window (Esc to close)">Expand ⛶</button>
                   <button type="button" id="vis-mode-user-btn" class="btn-subtle-accent" style="padding:3px 8px; font-size:11.5px;">My Live Code Trace</button>
                   <button type="button" id="vis-mode-optimal-btn" style="padding:3px 8px; font-size:11.5px;">Optimal Invariant</button>
                   <select id="vis-speed-select" class="model-select-pill" aria-label="Animation playback speed" style="font-size:11px;">
@@ -3732,7 +3807,12 @@
                       <span class="pt-code-pane-title" id="pt-code-pane-title">Your Code Trace</span>
                       <span class="pt-code-stale-badge" id="pt-code-stale-badge" style="display:none;">Edited since trace</span>
                     </div>
-                    <span class="pt-active-line-pill tabular" id="pt-active-line-pill">Ready</span>
+                    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                      <button type="button" id="pt-wrap-btn" class="pt-code-mini-btn" title="Wrap long code lines inside the trace pane">Wrap</button>
+                      <button type="button" id="pt-font-dec-btn" class="pt-code-mini-btn" title="Decrease traced code font size">A-</button>
+                      <button type="button" id="pt-font-inc-btn" class="pt-code-mini-btn" title="Increase traced code font size">A+</button>
+                      <span class="pt-active-line-pill tabular" id="pt-active-line-pill">Ready</span>
+                    </div>
                   </div>
                   <div class="pt-code-lines" id="pt-code-lines" role="region" aria-label="Line-by-line execution trace"></div>
                 </div>
@@ -3749,7 +3829,7 @@
                   </div>
                 </div>
               </div>
-              <div class="box-resizer-bar" data-resize-box="visHeight" title="Drag up or down to resize Visualiser height (double-click to reset)"></div>
+              <div class="box-resizer-bar pt-vis-resizer-bar" id="pt-vis-resizer-bar" data-resize-box="visHeight" title="Drag up or down to resize Python Tutor height (double-click to reset)">Drag to resize Tutor height (double-click to reset)</div>
             </div>
           </section>
         </div>
@@ -4086,6 +4166,8 @@
     <!-- TAB 5: Special Curated Problem Lists (Grind 75, LeetCode Top 150, NeetCode 150 + DAG, SQL 50) -->
     <section id="pane-lists" class="view-pane"></section>
   </div>
+
+  <div class="pt-modal-backdrop" id="pt-modal-backdrop" aria-hidden="true"></div>
 
   <!-- Command Palette & Editor Keyboard Shortcuts Modal (Ctrl+K / Ctrl+Shift+P) -->
   <div class="cmd-backdrop" id="command-palette-modal" role="dialog" aria-modal="true" aria-label="Editor Command Palette and Keyboard Shortcuts">
@@ -5897,7 +5979,7 @@
         probCardHeight: { el: () => document.getElementById('problem-spec-card'), min: 160, max: 920 },
         editorHeight: { el: () => document.getElementById('editor-frame'), min: 115, max: 780 },
         consoleHeight: { el: () => document.getElementById('test-results-container'), min: 65, max: 620 },
-        visHeight: { el: () => document.getElementById('pt-workspace-split'), min: 215, max: 760 },
+        visHeight: { el: () => document.getElementById('pt-workspace-split'), min: 215, max: 1200 },
       };
 
       document.querySelectorAll('.box-resizer-bar[data-resize-box]').forEach((bar) => {
@@ -6009,10 +6091,10 @@
           const startX = e.clientX;
           const startW = codePane.getBoundingClientRect().width || 240;
           const totalW = splitEl.getBoundingClientRect().width || 600;
-          const maxW = Math.max(200, Math.min(640, Math.floor(totalW * 0.68)));
+          const maxW = Math.max(220, Math.min(960, Math.floor(totalW * 0.80)));
 
           const onMove = (moveEv) => {
-            const nextW = Math.max(155, Math.min(maxW, startW + (moveEv.clientX - startX)));
+            const nextW = Math.max(140, Math.min(maxW, startW + (moveEv.clientX - startX)));
             splitEl.style.setProperty('--pt-code-col-w', `${nextW}px`);
             saveLayoutSizeKey('ptCodeColWidth', nextW);
             requestAnimationFrame(drawPythonTutorArrows);
@@ -8221,6 +8303,74 @@
     document.getElementById('pt-toggle-code-btn')?.addEventListener('click', () => {
       togglePtCodePane();
     });
+
+    let ptCodeFontSize = 12;
+    let ptCodeWrapped = false;
+    let ptExpandedModal = false;
+
+    function applyPtCodeFontSize(px) {
+      ptCodeFontSize = Math.max(10, Math.min(16, Number(px) || 12));
+      const linesEl = document.getElementById('pt-code-lines');
+      if (linesEl) {
+        linesEl.style.fontSize = `${ptCodeFontSize}px`;
+        linesEl.style.lineHeight = `${ptCodeFontSize + 8}px`;
+      }
+      try { localStorage.setItem('algoStudioPtFont_v1', String(ptCodeFontSize)); } catch (_) {}
+    }
+
+    function togglePtCodeWrap(forceState = null) {
+      ptCodeWrapped = forceState === null ? !ptCodeWrapped : Boolean(forceState);
+      const linesEl = document.getElementById('pt-code-lines');
+      const btn = document.getElementById('pt-wrap-btn');
+      if (linesEl) linesEl.classList.toggle('pt-code-wrap', ptCodeWrapped);
+      if (btn) btn.classList.toggle('btn-subtle-accent', ptCodeWrapped);
+      try { localStorage.setItem('algoStudioPtWrap_v1', ptCodeWrapped ? '1' : '0'); } catch (_) {}
+    }
+
+    function fitPtHeightToCode() {
+      const splitEl = document.getElementById('pt-workspace-split');
+      const linesEl = document.getElementById('pt-code-lines');
+      if (!splitEl || !linesEl) return;
+      if (ptExpandedModal) togglePtExpandedModal(false);
+      const lineCount = Math.max(1, linesEl.querySelectorAll('.pt-code-line').length || (document.getElementById('code-editor')?.value || '').split('\n').length);
+      const rowH = ptCodeFontSize + 8;
+      const contentH = Math.max(lineCount * rowH, linesEl.scrollHeight || 0);
+      const desired = Math.max(260, Math.min(960, contentH + 52));
+      splitEl.style.height = `${desired}px`;
+      saveLayoutSizeKey('visHeight', desired);
+      requestAnimationFrame(drawPythonTutorArrows);
+    }
+
+    function togglePtExpandedModal(forceState = null) {
+      ptExpandedModal = forceState === null ? !ptExpandedModal : Boolean(forceState);
+      const card = document.getElementById('live-visualiser-card');
+      const backdrop = document.getElementById('pt-modal-backdrop');
+      const btn = document.getElementById('pt-expand-modal-btn');
+      if (card) card.classList.toggle('pt-expanded-modal', ptExpandedModal);
+      if (backdrop) backdrop.classList.toggle('open', ptExpandedModal);
+      if (btn) {
+        btn.textContent = ptExpandedModal ? 'Collapse ✕' : 'Expand ⛶';
+        btn.classList.toggle('btn-subtle-accent', ptExpandedModal);
+      }
+      setTimeout(() => requestAnimationFrame(drawPythonTutorArrows), 50);
+    }
+
+    document.getElementById('pt-fit-height-btn')?.addEventListener('click', fitPtHeightToCode);
+    document.getElementById('pt-expand-modal-btn')?.addEventListener('click', () => togglePtExpandedModal());
+    document.getElementById('pt-modal-backdrop')?.addEventListener('click', () => togglePtExpandedModal(false));
+    document.getElementById('pt-wrap-btn')?.addEventListener('click', () => togglePtCodeWrap());
+    document.getElementById('pt-font-dec-btn')?.addEventListener('click', () => applyPtCodeFontSize(ptCodeFontSize - 1));
+    document.getElementById('pt-font-inc-btn')?.addEventListener('click', () => applyPtCodeFontSize(ptCodeFontSize + 1));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && ptExpandedModal) {
+        togglePtExpandedModal(false);
+      }
+    });
+    try {
+      const savedPtFont = Number(localStorage.getItem('algoStudioPtFont_v1'));
+      if (savedPtFont >= 10 && savedPtFont <= 16) applyPtCodeFontSize(savedPtFont);
+      if (localStorage.getItem('algoStudioPtWrap_v1') === '1') togglePtCodeWrap(true);
+    } catch (_) {}
     document.getElementById('vis-mode-user-btn').addEventListener('click', async () => {
       stopVisualiserPlayback();
       if (!state.userFrames.length) {
@@ -8733,6 +8883,20 @@
         hint: 'Toggles the synchronised traced code column next to Frames and Objects',
         keys: ['Code ◫'],
         run: () => togglePtCodePane(),
+      },
+      {
+        id: 'expand-pt-modal-cmd',
+        label: 'Expand or Collapse Python Tutor Visualiser (Full Window)',
+        hint: 'Enlarges the traced code and Frames/Objects stage to fill the full window',
+        keys: ['Expand ⛶'],
+        run: () => togglePtExpandedModal(),
+      },
+      {
+        id: 'fit-pt-height-cmd',
+        label: 'Auto-Fit Python Tutor Height to Traced Code',
+        hint: 'Resizes the visualiser height to show all lines of traced code without clipping',
+        keys: ['Fit Code'],
+        run: () => fitPtHeightToCode(),
       },
       {
         id: 'open-edge-playbook-cmd',

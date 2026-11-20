@@ -1439,6 +1439,26 @@ console.log('CLIENT_SECURITY_OK');
             self.assertIn(needle, html)
         self.assertIn("syncSheetFromCourse", v2_js)
 
+    def test_v220_python_tutor_resizable_and_expandable(self) -> None:
+        html = (server.PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+        for needle in (
+            'id="pt-fit-height-btn"',
+            'id="pt-expand-modal-btn"',
+            'id="pt-wrap-btn"',
+            'id="pt-font-dec-btn"',
+            'id="pt-font-inc-btn"',
+            'id="pt-vis-resizer-bar"',
+            'id="pt-modal-backdrop"',
+            '.visualiser-stage.pt-expanded-modal',
+            '.pt-code-lines.pt-code-wrap .pt-code-src',
+            'function fitPtHeightToCode(',
+            'function togglePtExpandedModal(',
+            'function togglePtCodeWrap(',
+            'function applyPtCodeFontSize(',
+            'max: 1200',
+        ):
+            self.assertIn(needle, html)
+
 
 if __name__ == "__main__":
     unittest.main()
