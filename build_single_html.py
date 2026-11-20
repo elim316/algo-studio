@@ -144,6 +144,7 @@ BROWSER_RUNTIME_JS = r'''
         interviewHistory: [],
         oaHistory: [],
         drafts: {},
+        submissions: {},
         notes: {},
         chatHistory: {},
         layoutSizes: {},
@@ -231,6 +232,7 @@ BROWSER_RUNTIME_JS = r'''
       if (!base.solvedDays || typeof base.solvedDays !== 'object') base.solvedDays = {};
       if (!base.solvedLcIds || typeof base.solvedLcIds !== 'object') base.solvedLcIds = {};
       if (!base.drafts || typeof base.drafts !== 'object') base.drafts = {};
+      if (!base.submissions || typeof base.submissions !== 'object') base.submissions = {};
       if (!base.notes || typeof base.notes !== 'object') base.notes = {};
       if (!base.chatHistory || typeof base.chatHistory !== 'object') base.chatHistory = {};
       if (!base.layoutSizes || typeof base.layoutSizes !== 'object') base.layoutSizes = {};
@@ -476,6 +478,61 @@ BROWSER_RUNTIME_JS = r'''
           elapsedMin: Math.max(0, Math.min(600, Math.trunc(Number(r.elapsedMin || 0)))),
         });
         prog.oaHistory = prog.oaHistory.slice(0, 30);
+      }
+
+      if (body.saveAcceptedSubmission && typeof body.saveAcceptedSubmission === 'object') {
+        const rawSub = body.saveAcceptedSubmission;
+        const subPassed = Math.trunc(Number(rawSub.passed || 0));
+        const subTotal = Math.trunc(Number(rawSub.total || 0));
+        const subLang = String(rawSub.language || '').toLowerCase().slice(0, 32);
+        const subCode = String(rawSub.code || '').slice(0, 200000);
+        if (
+          rawSub.allPassed === true &&
+          subTotal > 0 &&
+          subPassed === subTotal &&
+          __ALGO_ALLOWED_LANGS.has(subLang) &&
+          subCode.trim().length > 0
+        ) {
+          let subKey = null;
+          if (rawSub.problemId && byId[String(rawSub.problemId)]) {
+            const cprob = byId[String(rawSub.problemId)];
+            subKey = cprob.lcNum != null ? `lc:${Math.trunc(Number(cprob.lcNum))}` : `id:${String(rawSub.problemId)}`;
+          } else if (rawSub.day != null && Number.isFinite(Number(rawSub.day))) {
+            const dInt = Math.max(1, Math.min(totalDays, Math.trunc(Number(rawSub.day))));
+            const lcN = __dayToLcNum[dInt];
+            subKey = lcN != null ? `lc:${lcN}` : `day:${dInt}`;
+          } else if (/^(lc:\d+|day:\d+|id:[A-Za-z0-9_-]{1,80})$/.test(String(rawSub.key || ''))) {
+            subKey = String(rawSub.key);
+          }
+          if (subKey) {
+            const rtRaw = Number(rawSub.runtimeMs || 0);
+            const rtMs = Number.isFinite(rtRaw) ? Math.round(Math.max(0, Math.min(600000, rtRaw)) * 100) / 100 : 0;
+            const subCourse = __ALGO_ALLOWED_COURSES.has(String(rawSub.course || '')) ? String(rawSub.course) : 'schedule-120';
+            const subRec = {
+              id: `sub_${Date.now()}_${subCode.length % 997}`,
+              submittedAt: __utcStampStr(),
+              language: subLang,
+              code: subCode,
+              passed: subPassed,
+              total: subTotal,
+              runtimeMs: rtMs,
+              course: subCourse,
+              problemLabel: String(rawSub.problemLabel || '').slice(0, 160),
+            };
+            if (!prog.submissions || typeof prog.submissions !== 'object') prog.submissions = {};
+            const existing = Array.isArray(prog.submissions[subKey]) ? prog.submissions[subKey].slice() : [];
+            if (
+              existing.length > 0 &&
+              existing[0].language === subRec.language &&
+              String(existing[0].code || '').trim() === subRec.code.trim()
+            ) {
+              existing[0] = subRec;
+            } else {
+              existing.unshift(subRec);
+            }
+            prog.submissions[subKey] = existing.slice(0, 25);
+          }
+        }
       }
 
       let nextDay = null;

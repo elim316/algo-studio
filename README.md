@@ -13,7 +13,7 @@ If your Chromebook does not have Linux Terminal access, use the single self-cont
 How single-file mode works:
 - Instant offline browsing and study: all 406 problems, 6 courses, 601 hidden edge cases, 9-domain edge-case playbook, Guided Coaching, Pressure Recall Drills, and native TypeScript execution load immediately from the file itself.
 - In-browser Python 3 and SQLite 3: the first time you run a Python or SQL 50 solution (or click Analyse / AI Co-Pilot), Chrome loads the Pyodide WebAssembly Python 3 and SQLite 3 runtime (~12 MB) directly inside the browser tab and caches it automatically for subsequent runs.
-- Persistent Chromebook progress: solved questions, course positions, code drafts, bookmarks, notes, drill high scores, and mock/OA history save automatically in browser `localStorage`. Click `Export` in the top toolbar anytime to download a JSON backup to `Downloads`, or `Import` to restore it on another device.
+- Persistent Chromebook progress: solved questions, passed submission history, course positions, code drafts, bookmarks, notes, drill high scores, and mock/OA history save automatically in browser `localStorage`. Click `Export` in the top toolbar anytime to download a JSON backup to `Downloads`, or `Import` to restore it on another device.
 
 ## Courses included
 
@@ -28,6 +28,7 @@ Switch courses anytime from the Course dropdown next to the problem selector. So
 ## Built-in practice tools
 
 - Live code execution: Python 3 (including `ListNode`, `TreeNode`, Graph `Node`, `QuadTree`, and class-design harnesses), TypeScript, and SQLite 3 run directly in Chrome in single-file mode, or locally via the Python 3 server (plus optional Go when installed).
+- Passed submissions history and Practise Again: only solutions that pass all tests and are submitted are saved under `Submissions (N)` (synchronised across courses by LeetCode problem number). Click `Practise Again` to reset to starter code without losing your saved answers, and click `Revert to Latest Passed` or `Revert to Editor` on any past accepted submission to restore it anytime.
 - Resizable Python Tutor memory visualiser: side-by-side traced code pane, call stack frames, heap object tables, pointer arrows, clickable gutter breakpoints, `Fit Code`, font/wrap controls, drag handles, and full-window `Expand` mode.
 - Guided Coaching and 20-check rubric scorer: 3-tier progressive hints, mental-model pivots, and a transparent 100-point rubric explaining how to earn full marks.
 - Timed Pressure Recall Drills: Line Recall, Token Blitz, and Blind Master drills with countdown timers, lives, streak multipliers, and saved high scores.

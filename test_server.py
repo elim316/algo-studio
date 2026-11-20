@@ -1460,5 +1460,154 @@ console.log('CLIENT_SECURITY_OK');
             self.assertIn(needle, html)
 
 
+    def test_v230_accepted_submissions_and_practise_again(self) -> None:
+        import http.client
+        import json
+        import threading
+
+        srv = server._ReusableThreadingHTTPServer(("127.0.0.1", 0), server.AlgoStudioHandler)
+        port = srv.server_address[1]
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            def req_json(method: str, path: str, body: dict | None = None):
+                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
+                try:
+                    raw = json.dumps(body).encode("utf-8") if body is not None else None
+                    hdrs = {"Content-Type": "application/json"} if raw is not None else {}
+                    conn.request(method, path, body=raw, headers=hdrs)
+                    resp = conn.getresponse()
+                    return resp.status, json.loads(resp.read().decode("utf-8"))
+                finally:
+                    conn.close()
+
+            # 1. Failed or partial submissions are strictly rejected from progress.submissions
+            st, r_fail = req_json("POST", "/api/progress", {
+                "saveAcceptedSubmission": {
+                    "day": 1,
+                    "allPassed": False,
+                    "passed": 2,
+                    "total": 10,
+                    "language": "python",
+                    "code": "def twoSum(nums, target):\n    return [0, 0]\n",
+                },
+            })
+            self.assertEqual(st, 200)
+            self.assertEqual(r_fail["progress"].get("submissions", {}), {})
+
+            # 2. Partial pass claiming allPassed=True is also rejected
+            st, r_partial = req_json("POST", "/api/progress", {
+                "saveAcceptedSubmission": {
+                    "day": 1,
+                    "allPassed": True,
+                    "passed": 9,
+                    "total": 10,
+                    "language": "python",
+                    "code": "def twoSum(nums, target):\n    return [0, 1]\n",
+                },
+            })
+            self.assertEqual(st, 200)
+            self.assertEqual(r_partial["progress"].get("submissions", {}), {})
+
+            # 3. Verified passed Day 1 submission is stored under canonical lc:1 key
+            sol_v1 = "def twoSum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i + 1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]\n"
+            st, r_ok1 = req_json("POST", "/api/progress", {
+                "day": 1,
+                "markSolved": True,
+                "advanceToNext": False,
+                "language": "python",
+                "draft": sol_v1,
+                "saveAcceptedSubmission": {
+                    "day": 1,
+                    "allPassed": True,
+                    "passed": 10,
+                    "total": 10,
+                    "runtimeMs": 12.4,
+                    "language": "python",
+                    "code": sol_v1,
+                    "course": "schedule-120",
+                    "problemLabel": "Day 1 (LC 1): Two Sum",
+                },
+            })
+            self.assertEqual(st, 200)
+            subs_lc1 = r_ok1["progress"]["submissions"].get("lc:1", [])
+            self.assertEqual(len(subs_lc1), 1)
+            self.assertEqual(subs_lc1[0]["code"], sol_v1)
+            self.assertEqual(subs_lc1[0]["passed"], 10)
+            self.assertEqual(subs_lc1[0]["total"], 10)
+
+            # 4. Submitting a second, optimal solution on lc-1 from Grind 75 appends newest-first under the same lc:1 key
+            sol_v2 = "def twoSum(nums, target):\n    seen = {}\n    for i, x in enumerate(nums):\n        if target - x in seen:\n            return [seen[target - x], i]\n        seen[x] = i\n"
+            st, r_ok2 = req_json("POST", "/api/progress", {
+                "toggleSolvedCurated": True,
+                "problemId": "lc-1",
+                "solved": True,
+                "advanceToNext": False,
+                "language": "python",
+                "draft": sol_v2,
+                "saveAcceptedSubmission": {
+                    "problemId": "lc-1",
+                    "allPassed": True,
+                    "passed": 3,
+                    "total": 3,
+                    "runtimeMs": 1.8,
+                    "language": "python",
+                    "code": sol_v2,
+                    "course": "grind-75",
+                    "problemLabel": "LC 1: Two Sum",
+                },
+            })
+            self.assertEqual(st, 200)
+            subs_lc1_after = r_ok2["progress"]["submissions"].get("lc:1", [])
+            self.assertEqual(len(subs_lc1_after), 2)
+            self.assertEqual(subs_lc1_after[0]["code"], sol_v2)
+            self.assertEqual(subs_lc1_after[1]["code"], sol_v1)
+
+            # 5. Re-submitting identical code updates newest in-place without noisy duplicate
+            st, r_dup = req_json("POST", "/api/progress", {
+                "saveAcceptedSubmission": {
+                    "problemId": "lc-1",
+                    "allPassed": True,
+                    "passed": 3,
+                    "total": 3,
+                    "runtimeMs": 1.5,
+                    "language": "python",
+                    "code": sol_v2,
+                    "course": "grind-75",
+                },
+            })
+            self.assertEqual(st, 200)
+            self.assertEqual(len(r_dup["progress"]["submissions"]["lc:1"]), 2)
+            self.assertEqual(r_dup["progress"]["submissions"]["lc:1"][0]["runtimeMs"], 1.5)
+
+            # 6. Reloading /api/state preserves submissions even if user overwrites draft with starter code to practise again
+            st, _ = req_json("POST", "/api/progress", {"day": 1, "language": "python", "draft": "def twoSum(nums, target):\n    pass\n"})
+            self.assertEqual(st, 200)
+            st, state_res = req_json("GET", "/api/state")
+            self.assertEqual(st, 200)
+            self.assertEqual(len(state_res["progress"]["submissions"]["lc:1"]), 2)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        html = (server.PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+        v2_js = (server.PUBLIC_DIR / "studio_v2.js").read_text(encoding="utf-8")
+        for needle in (
+            'id="toggle-submissions-btn"',
+            'id="practise-again-btn"',
+            'id="accepted-submissions-panel"',
+            'id="practice-revert-strip"',
+            'id="strip-revert-latest-btn"',
+            'id="accepted-save-stay-btn"',
+            'function submissionKeyForProblem(',
+            'function getAcceptedSubmissionsForProblem(',
+            'function practiseAgainCurrentProblem(',
+            'function revertToSubmission(',
+            'saveAcceptedSubmission:',
+        ):
+            self.assertIn(needle, html)
+        self.assertIn('id="accepted-sql-save-stay-btn"', v2_js)
+
+
 if __name__ == "__main__":
     unittest.main()

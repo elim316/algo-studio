@@ -155,6 +155,7 @@ def _default_progress() -> dict[str, Any]:
         "interviewHistory": [],
         "oaHistory": [],
         "drafts": {},
+        "submissions": {},
         "notes": {},
         "chatHistory": {},
         "layoutSizes": {},
@@ -190,6 +191,8 @@ def load_progress(auto_advance: bool = True) -> dict[str, Any]:
                 base["activeCourse"] = "schedule-120"
             if not isinstance(base.get("coursePositions"), dict):
                 base["coursePositions"] = {}
+            if not isinstance(base.get("submissions"), dict):
+                base["submissions"] = {}
             solved = base.get("solvedDays") or {}
             solved_lc = base.setdefault("solvedLcIds", {})
             mirrored = False
@@ -3485,6 +3488,73 @@ def _sanitize_oa_record(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_SUBMISSION_KEY_RE = re.compile(r"^(lc:\d+|day:\d+|id:[A-Za-z0-9_-]{1,80})$")
+_MAX_SUBMISSIONS_PER_PROBLEM = 25
+
+
+def _resolve_submission_key(raw: dict[str, Any]) -> str | None:
+    if raw.get("problemId"):
+        pid = _safe_str(raw["problemId"], 100)
+        cprob = cl.get_problem(pid)
+        if cprob is not None:
+            lc_n = cprob.get("lcNum")
+            return f"lc:{int(lc_n)}" if lc_n is not None else f"id:{pid}"
+    if "day" in raw and raw["day"] is not None:
+        try:
+            d_int = _parse_day_field(raw["day"])
+        except ValueError:
+            return None
+        lc_n = _day_to_lc_num(d_int)
+        return f"lc:{int(lc_n)}" if lc_n is not None else f"day:{d_int}"
+    raw_key = _safe_str(raw.get("key", ""), 100)
+    if _SUBMISSION_KEY_RE.match(raw_key):
+        return raw_key
+    return None
+
+
+def _sanitize_accepted_submission(raw: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    """Only accept verified passed-and-submitted code snapshots."""
+    if raw.get("allPassed") is not True:
+        return None
+    try:
+        passed = _parse_int_field(raw.get("passed", 0), name="passed")
+        total = _parse_int_field(raw.get("total", 0), name="total")
+    except ValueError:
+        return None
+    if total <= 0 or passed != total:
+        return None
+    lang = _safe_str(raw.get("language", ""), 32).lower()
+    if lang not in _ALLOWED_LANGUAGES:
+        return None
+    code = _safe_str(raw.get("code", ""), _MAX_CODE_CHARS)
+    if not code.strip():
+        return None
+    sub_key = _resolve_submission_key(raw)
+    if not sub_key:
+        return None
+    try:
+        rt_raw = float(raw.get("runtimeMs", 0.0) or 0.0)
+        runtime_ms = round(max(0.0, min(600000.0, rt_raw)), 2)
+    except (ValueError, TypeError):
+        runtime_ms = 0.0
+    course = _safe_str(raw.get("course", "schedule-120"), 40)
+    if course not in _ALLOWED_COURSES:
+        course = "schedule-120"
+    now = datetime.now(timezone.utc)
+    rec = {
+        "id": f"sub_{int(time.time() * 1000)}_{len(code) % 997}",
+        "submittedAt": now.strftime("%Y-%m-%d %H:%M UTC"),
+        "language": lang,
+        "code": code,
+        "passed": passed,
+        "total": total,
+        "runtimeMs": runtime_ms,
+        "course": course,
+        "problemLabel": _safe_str(raw.get("problemLabel", ""), 160),
+    }
+    return sub_key, rec
+
+
 def _save_code_draft(draft_key: str, code: str, current_day: int | None = None) -> None:
     if len(draft_key) > 100 or len(code) > _MAX_CODE_CHARS:
         return
@@ -3827,6 +3897,21 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
                     oh = list(prog.get("oaHistory") or [])
                     oh.insert(0, _sanitize_oa_record(body["saveOaRecord"]))
                     prog["oaHistory"] = oh[:30]
+                if isinstance(body.get("saveAcceptedSubmission"), dict):
+                    sanitized_sub = _sanitize_accepted_submission(body["saveAcceptedSubmission"])
+                    if sanitized_sub is not None:
+                        sub_key, sub_rec = sanitized_sub
+                        subs_map = prog.setdefault("submissions", {})
+                        existing_subs = list(subs_map.get(sub_key) or [])
+                        if (
+                            existing_subs
+                            and existing_subs[0].get("language") == sub_rec["language"]
+                            and str(existing_subs[0].get("code", "")).strip() == sub_rec["code"].strip()
+                        ):
+                            existing_subs[0] = sub_rec
+                        else:
+                            existing_subs.insert(0, sub_rec)
+                        subs_map[sub_key] = existing_subs[:_MAX_SUBMISSIONS_PER_PROBLEM]
                 next_day = None
                 next_problem_id = None
                 if body.get("toggleSolvedCurated") and body.get("problemId"):

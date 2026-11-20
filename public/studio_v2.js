@@ -312,9 +312,13 @@
       acc.className = 'accepted-banner';
       acc.innerHTML =
         `<span>SQL Query Accepted (${esc(tc?.stdout || 'Matched expected result set')})</span>` +
-        `<button type="button" class="btn-submit ready" id="accepted-sql-submit-btn" style="padding:4px 11px; font-size:12px;">Confirm Submit &amp; Mark Solved</button>`;
+        `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">` +
+        `<button type="button" class="btn-subtle-accent" id="accepted-sql-save-stay-btn" style="padding:4px 10px; font-size:12px;">Save Submission (Stay)</button>` +
+        `<button type="button" class="btn-submit ready" id="accepted-sql-submit-btn" style="padding:4px 11px; font-size:12px;">Confirm Submit &amp; Mark Solved</button>` +
+        `</div>`;
       container.appendChild(acc);
-      document.getElementById('accepted-sql-submit-btn')?.addEventListener('click', () => bridge.submitCurrentSolution('Good'));
+      document.getElementById('accepted-sql-save-stay-btn')?.addEventListener('click', () => bridge.submitCurrentSolution('Good', { advance: false }));
+      document.getElementById('accepted-sql-submit-btn')?.addEventListener('click', () => bridge.submitCurrentSolution('Good', { advance: true }));
     } else {
       if (submitBtn) submitBtn.classList.remove('ready');
       const errLn = res.errorLine || tc?.errorLine || null;

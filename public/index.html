@@ -3485,6 +3485,108 @@
       color: var(--fg);
       resize: vertical;
     }
+
+    /* Accepted Submissions History & Practise-Again Revert Controls */
+    .submissions-toggle-btn {
+      font-size: 11.5px;
+      padding: 3px 9px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .submissions-toggle-btn.has-items {
+      color: var(--success);
+      border-color: color-mix(in srgb, var(--success) 45%, var(--border-col));
+    }
+
+    .submissions-toggle-btn.active {
+      background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .submissions-drawer {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--radius-inner);
+      background: var(--surface-2);
+      border: 1px solid var(--border-col);
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .submissions-drawer.open {
+      display: flex;
+    }
+
+    .submission-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 1px solid var(--border-col);
+      border-left: 3px solid var(--success);
+    }
+
+    .submission-item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .submission-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 11.5px;
+    }
+
+    .submission-badge-acc {
+      font-size: 10.5px;
+      font-weight: 650;
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: var(--success);
+      background: var(--success-bg);
+    }
+
+    .submission-code-preview {
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--border-col);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      line-height: 1.5;
+      overflow-x: auto;
+      max-height: 220px;
+      white-space: pre;
+    }
+
+    .practice-revert-strip {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--border-col);
+      border-left: 3px solid var(--accent);
+      font-size: 11.5px;
+    }
+
+    .practice-revert-strip.visible {
+      display: flex;
+    }
   </style>
 </head>
 <body>
@@ -3634,6 +3736,8 @@
                     <option value="sql">SQL (SQLite 3)</option>
                   </select>
                   <span id="current-solved-pill" class="stat-pill" style="display:none; color:var(--success); border-color:color-mix(in srgb, var(--success) 45%, var(--border-col));">Solved ✓</span>
+                  <button type="button" id="toggle-submissions-btn" class="submissions-toggle-btn" aria-expanded="false" title="View your accepted, submitted solutions for this problem">Submissions (0)</button>
+                  <button type="button" id="practise-again-btn" class="btn-subtle-accent" style="display:none; padding:4px 9px; font-size:11.5px;" title="Reset the editor to clean starter code to practise again while keeping all passed submissions saved">Practise Again</button>
                 </div>
                 <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
                   <button type="button" id="toggle-comment-btn" title="Comment or uncomment current line or all selected lines (Ctrl+/)"># Comment (Ctrl+/)</button>
@@ -3663,6 +3767,32 @@
                 <button type="button" id="editor-goto-line-btn" style="padding:3px 8px; font-size:11px;">Go</button>
                 <span id="editor-find-status" class="muted tabular" style="font-size:11px;"></span>
                 <button type="button" id="editor-find-close-btn" style="padding:2px 7px; font-size:11px; margin-left:auto;">Close</button>
+              </div>
+
+              <!-- Collapsible Passed & Submitted Solutions History Panel -->
+              <div class="submissions-drawer" id="accepted-submissions-panel" aria-label="Passed submissions history">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span style="font-size:12.5px; font-weight:650; color:var(--fg);">Passed Submissions</span>
+                    <span class="stat-pill tabular" id="submissions-panel-count">0 accepted</span>
+                    <span class="muted" style="font-size:11px;">Only solutions that passed all tests and were submitted appear here.</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                    <button type="button" id="submissions-practise-again-btn" class="btn-subtle-accent" style="padding:3px 9px; font-size:11.5px;">Practise Again</button>
+                    <button type="button" id="submissions-revert-latest-btn" style="padding:3px 9px; font-size:11.5px;">Revert to Latest</button>
+                    <button type="button" id="submissions-close-btn" style="padding:3px 8px; font-size:11.5px;">Close</button>
+                  </div>
+                </div>
+                <div id="submissions-list-body" style="display:flex; flex-direction:column; gap:7px;"></div>
+              </div>
+
+              <!-- Slim Practise-Again / Revert Strip (auto-shown when editor differs from latest passed submission) -->
+              <div class="practice-revert-strip" id="practice-revert-strip">
+                <span id="practice-revert-text" style="color:var(--fg-secondary);">Practising fresh. Your passed submission is safely stored.</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <button type="button" id="strip-revert-latest-btn" class="btn-subtle-accent" style="padding:2px 9px; font-size:11px;">Revert to Latest Passed</button>
+                  <button type="button" id="strip-view-submissions-btn" style="padding:2px 8px; font-size:11px;">View Submissions</button>
+                </div>
               </div>
 
               <!-- Pre-Code Approach Check Bar (Improvement 4) -->
@@ -4241,6 +4371,8 @@
       ptSplitView: false,
       spacedRepetition: { dueCount: 0, dueReviewDays: [], weakTopics: [] },
       draftDirty: false,
+      submissionsOpen: false,
+      expandedSubmissionId: null,
       initialized: false,
       lastServerSyncMs: 0,
     };
@@ -5479,6 +5611,7 @@
       ta.selectionStart = ta.selectionEnd = newCursor;
       closeAutocomplete();
       updateEditorRender();
+      updatePracticeRevertStrip();
       scheduleDraftSave();
     }
 
@@ -6512,6 +6645,9 @@
       state.breakpoints = new Set();
       closeAutocomplete();
       updateEditorRender();
+      state.submissionsOpen = false;
+      state.expandedSubmissionId = null;
+      updateSubmissionsUI(p);
 
       const appInput = document.getElementById('approach-check-input');
       const appFb = document.getElementById('approach-check-feedback');
@@ -6640,6 +6776,7 @@
       if (tab3UnmarkBtn) {
         tab3UnmarkBtn.style.display = isSolved ? 'inline-flex' : 'none';
       }
+      updateSubmissionsUI(p);
     }
 
     async function toggleSolvedForDay(dayNum, forceState = null) {
@@ -7238,7 +7375,234 @@
       renderVisualiserFrame();
     }
 
-    async function submitCurrentSolution(rating = 'Good') {
+    const SUBMISSION_LANG_LABELS = {
+      python: 'Python 3',
+      typescript: 'TypeScript',
+      go: 'Go',
+      sql: 'SQLite 3',
+    };
+
+    function submissionKeyForProblem(p) {
+      if (!p) return 'day:1';
+      if (p.lcNum != null && Number.isFinite(Number(p.lcNum))) {
+        return `lc:${Math.trunc(Number(p.lcNum))}`;
+      }
+      const lcid = String(p.leetcodeId || '');
+      const m = lcid.match(/^LC\s*(\d+)/i);
+      if (m) return `lc:${Number(m[1])}`;
+      if (p.isCurated && p.id) return `id:${p.id}`;
+      return `day:${Number(p.day || 1)}`;
+    }
+
+    function getAcceptedSubmissionsForProblem(p) {
+      if (!p) return [];
+      const key = submissionKeyForProblem(p);
+      const raw = state.progress?.submissions?.[key];
+      if (!Array.isArray(raw)) return [];
+      return raw.filter((s) =>
+        s &&
+        typeof s.code === 'string' &&
+        s.code.trim().length > 0 &&
+        Number(s.total) > 0 &&
+        Number(s.passed) === Number(s.total)
+      );
+    }
+
+    function updatePracticeRevertStrip(p = currentProblem()) {
+      const strip = document.getElementById('practice-revert-strip');
+      const textEl = document.getElementById('practice-revert-text');
+      const editorEl = document.getElementById('code-editor');
+      if (!strip || !textEl || !editorEl) return;
+      const subs = getAcceptedSubmissionsForProblem(p);
+      if (!subs.length) {
+        strip.classList.remove('visible');
+        return;
+      }
+      const latest = subs[0];
+      const curCode = editorEl.value || '';
+      const matchesLatest =
+        curCode.trim() === String(latest.code || '').trim() &&
+        state.activeLang === latest.language;
+      if (matchesLatest) {
+        strip.classList.remove('visible');
+        return;
+      }
+      const langLbl = SUBMISSION_LANG_LABELS[latest.language] || latest.language;
+      const countLbl = subs.length === 1 ? '1 passed submission saved' : `${subs.length} passed submissions saved`;
+      textEl.textContent = `Practising fresh (${countLbl}; latest accepted: ${langLbl}, ${latest.submittedAt || 'saved'}).`;
+      strip.classList.add('visible');
+    }
+
+    function revertToSubmission(sub, displayNum = 1) {
+      const p = currentProblem();
+      if (!p || !sub || typeof sub.code !== 'string') return;
+      const editorEl = document.getElementById('code-editor');
+      const langSel = document.getElementById('lang-select');
+      const targetLang = sub.language || state.activeLang;
+      if (targetLang && targetLang !== state.activeLang) {
+        const langOpt = langSel ? Array.from(langSel.options).find((o) => o.value === targetLang && !o.disabled) : null;
+        if (langOpt) {
+          state.activeLang = targetLang;
+          langSel.value = targetLang;
+          const commentBtn = document.getElementById('toggle-comment-btn');
+          if (commentBtn) {
+            commentBtn.textContent = targetLang === 'sql'
+              ? '-- Comment (Ctrl+/)'
+              : (targetLang === 'python' ? '# Comment (Ctrl+/)' : '// Comment (Ctrl+/)');
+          }
+        }
+      }
+      editorEl.value = sub.code;
+      setErrorHighlight(null, '');
+      setTraceHighlight(null);
+      updateEditorRender();
+      state.draftDirty = true;
+      flushDraftSaveNow();
+      updatePracticeRevertStrip(p);
+      const langLbl = SUBMISSION_LANG_LABELS[state.activeLang] || state.activeLang;
+      const summary = document.getElementById('run-status-summary');
+      if (summary) {
+        summary.textContent = `Reverted editor to Accepted Submission #${displayNum} (${langLbl}, ${sub.submittedAt || 'saved'}).`;
+      }
+    }
+
+    function practiseAgainCurrentProblem() {
+      const p = currentProblem();
+      if (!p) return;
+      const editorEl = document.getElementById('code-editor');
+      if (!editorEl) return;
+      editorEl.value = p.starterCode?.[state.activeLang] || '';
+      setErrorHighlight(null, '');
+      setTraceHighlight(null);
+      updateEditorRender();
+      state.draftDirty = true;
+      scheduleDraftSave();
+      state.submissionsOpen = false;
+      updateSubmissionsUI(p);
+      const subs = getAcceptedSubmissionsForProblem(p);
+      const summary = document.getElementById('run-status-summary');
+      if (summary) {
+        summary.textContent = subs.length
+          ? 'Fresh starter loaded for practice. Your passed submissions remain saved; click Revert to Latest Passed or Submissions anytime.'
+          : 'Starter template restored.';
+      }
+      editorEl.focus();
+    }
+
+    function renderAcceptedSubmissionsPanel(p = currentProblem()) {
+      const panel = document.getElementById('accepted-submissions-panel');
+      const body = document.getElementById('submissions-list-body');
+      const countPill = document.getElementById('submissions-panel-count');
+      const revertLatestBtn = document.getElementById('submissions-revert-latest-btn');
+      if (!panel || !body) return;
+      const subs = getAcceptedSubmissionsForProblem(p);
+      if (countPill) countPill.textContent = `${subs.length} accepted`;
+      if (revertLatestBtn) revertLatestBtn.disabled = subs.length === 0;
+      panel.classList.toggle('open', Boolean(state.submissionsOpen));
+      if (!state.submissionsOpen) return;
+
+      body.innerHTML = '';
+      if (!subs.length) {
+        body.innerHTML =
+          `<div class="muted" style="font-size:12px; padding:4px 2px;">No passed submissions saved yet for this problem. Pass all test cases and submit to save an accepted snapshot here.</div>`;
+        return;
+      }
+
+      subs.forEach((sub, idx) => {
+        const displayNum = subs.length - idx;
+        const langLbl = SUBMISSION_LANG_LABELS[sub.language] || sub.language;
+        const subId = sub.id || `sub_${idx}`;
+        const isExpanded = state.expandedSubmissionId === subId || (state.expandedSubmissionId === null && idx === 0);
+        const card = document.createElement('div');
+        card.className = 'submission-item';
+        const cMeta = sub.course ? COURSES_META.find((c) => c.id === sub.course) : null;
+        const courseBadge = cMeta
+          ? `<span class="tag-pill" style="font-size:10.5px;">${escapeHtml(cMeta.shortLabel)}</span>`
+          : '';
+        card.innerHTML =
+          `<div class="submission-item-head">` +
+          `<div class="submission-meta">` +
+          `<span class="submission-badge-acc">Accepted</span>` +
+          `<span style="font-weight:650; color:var(--fg);" class="tabular">#${displayNum}</span>` +
+          `<span class="tag-pill" style="font-size:10.5px;">${escapeHtml(langLbl)}</span>` +
+          `<span class="muted tabular">${sub.passed}/${sub.total} passed</span>` +
+          `<span class="muted tabular">${sub.runtimeMs ?? 0} ms</span>` +
+          `<span class="muted tabular">${escapeHtml(sub.submittedAt || '')}</span>` +
+          courseBadge +
+          `</div>` +
+          `<div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">` +
+          `<button type="button" data-sub-preview="${escapeHtml(subId)}" style="padding:2px 8px; font-size:11px;">${isExpanded ? 'Hide Code' : 'Preview'}</button>` +
+          `<button type="button" data-sub-revert="${idx}" class="btn-subtle-accent" style="padding:2px 9px; font-size:11px;">Revert to Editor</button>` +
+          `<button type="button" data-sub-copy="${idx}" style="padding:2px 8px; font-size:11px;">Copy</button>` +
+          `</div>` +
+          `</div>` +
+          (isExpanded
+            ? `<pre class="submission-code-preview">${highlightCodeHtml(sub.code, sub.language || 'python')}</pre>`
+            : '');
+        body.appendChild(card);
+      });
+
+      body.querySelectorAll('[data-sub-preview]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const sid = btn.getAttribute('data-sub-preview');
+          const subsNow = getAcceptedSubmissionsForProblem(currentProblem());
+          const firstId = subsNow[0]?.id || 'sub_0';
+          const curExpanded = state.expandedSubmissionId === null ? firstId : state.expandedSubmissionId;
+          state.expandedSubmissionId = (curExpanded === sid) ? '__none__' : sid;
+          renderAcceptedSubmissionsPanel(currentProblem());
+        });
+      });
+
+      body.querySelectorAll('[data-sub-revert]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.getAttribute('data-sub-revert'));
+          const subsNow = getAcceptedSubmissionsForProblem(currentProblem());
+          if (subsNow[idx]) {
+            revertToSubmission(subsNow[idx], subsNow.length - idx);
+          }
+        });
+      });
+
+      body.querySelectorAll('[data-sub-copy]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.getAttribute('data-sub-copy'));
+          const subsNow = getAcceptedSubmissionsForProblem(currentProblem());
+          const text = subsNow[idx]?.code || '';
+          if (!text) return;
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text).catch(() => copyTextFallback(text));
+          } else {
+            copyTextFallback(text);
+          }
+          const orig = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = orig; }, 1400);
+        });
+      });
+    }
+
+    function updateSubmissionsUI(p = currentProblem()) {
+      const toggleBtn = document.getElementById('toggle-submissions-btn');
+      const practiseBtn = document.getElementById('practise-again-btn');
+      const subs = getAcceptedSubmissionsForProblem(p);
+      const isSolved = p ? (p.isCurated
+        ? (p.lcNum != null && Boolean(state.progress?.solvedLcIds?.[String(p.lcNum)]))
+        : Boolean(state.progress?.solvedDays?.[String(p.day)])) : false;
+      if (toggleBtn) {
+        toggleBtn.textContent = `Submissions (${subs.length})`;
+        toggleBtn.classList.toggle('has-items', subs.length > 0);
+        toggleBtn.classList.toggle('active', Boolean(state.submissionsOpen));
+        toggleBtn.setAttribute('aria-expanded', state.submissionsOpen ? 'true' : 'false');
+      }
+      if (practiseBtn) {
+        practiseBtn.style.display = (subs.length > 0 || isSolved) ? 'inline-flex' : 'none';
+      }
+      renderAcceptedSubmissionsPanel(p);
+      updatePracticeRevertStrip(p);
+    }
+
+    async function submitCurrentSolution(rating = 'Good', opts = {}) {
+      const advance = opts.advance !== false;
       const p = currentProblem();
       const code = document.getElementById('code-editor').value;
       const submitBtn = document.getElementById('submit-solution-btn');
@@ -7247,7 +7611,12 @@
 
       try {
         let res = state.lastRunResult;
-        if (!res || !res.allPassed) {
+        if (
+          !res ||
+          !res.allPassed ||
+          res.tracedCode !== code ||
+          res.tracedLanguage !== state.activeLang
+        ) {
           res = await runTests(false);
         }
         if (!res || !res.allPassed) {
@@ -7256,6 +7625,24 @@
           return;
         }
 
+        const totalRuntimeMs = Math.round(
+          ((res.results || []).reduce((acc, r) => acc + (Number(r.runtimeMs) || 0), 0)) * 100
+        ) / 100;
+        const acceptedSubPayload = {
+          ...activeProblemIdPayload(p),
+          key: submissionKeyForProblem(p),
+          allPassed: true,
+          passed: Number(res.passed || 0),
+          total: Number(res.total || 0),
+          runtimeMs: totalRuntimeMs,
+          language: state.activeLang,
+          code,
+          course: state.activeCourse,
+          problemLabel: p.isCurated
+            ? `${p.leetcodeId}: ${p.title}`
+            : `Day ${p.day} (${p.leetcodeId}): ${p.title}`,
+        };
+
         if (p.isCurated) {
           const solvedTitle = p.title;
           const solvedLcid = p.leetcodeId;
@@ -7263,40 +7650,48 @@
             toggleSolvedCurated: true,
             problemId: p.id,
             course: state.activeCourse,
-            advanceToNext: true,
+            advanceToNext: advance,
             solved: true,
             rating,
             language: state.activeLang,
             draft: code,
+            saveAcceptedSubmission: acceptedSubPayload,
           });
           if (saveRes.ok) {
             state.progress = saveRes.progress;
             if (saveRes.tags) state.tags = saveRes.tags;
             if (saveRes.spacedRepetition) state.spacedRepetition = saveRes.spacedRepetition;
-            const nextPid = saveRes.nextProblemId;
+            const nextPid = advance ? saveRes.nextProblemId : null;
             if (nextPid && nextPid !== p.id && state.curatedCatalog?.problemsById?.[nextPid]) {
               state.activeCuratedId = nextPid;
             }
             renderHeaderStats();
             populateSelectors();
-            renderActiveProblem();
+            if (advance && nextPid && nextPid !== p.id) {
+              renderActiveProblem();
+            } else {
+              updateSolvedIndicatorsForActiveDay();
+              updateSubmissionsUI(currentProblem());
+            }
             renderRoadmapAndTags();
             if (window.StudioV2?.onProgressUpdated) window.StudioV2.onProgressUpdated();
             const nextProb = currentProblem();
+            const subCnt = getAcceptedSubmissionsForProblem(p).length;
             document.getElementById('run-status-summary').textContent =
-              nextPid && nextProb && nextProb.id !== p.id
-                ? `${solvedLcid} (${solvedTitle}) submitted and marked Solved. Advanced to ${nextProb.leetcodeId}: ${nextProb.title}.`
-                : `${solvedLcid} (${solvedTitle}) submitted and marked Solved across all courses.`;
+              advance && nextPid && nextProb && nextProb.id !== p.id
+                ? `${solvedLcid} (${solvedTitle}) submitted (saved to Passed Submissions) and marked Solved. Advanced to ${nextProb.leetcodeId}: ${nextProb.title}.`
+                : `${solvedLcid} (${solvedTitle}) saved to Passed Submissions (${subCnt} accepted) and marked Solved across all courses.`;
           }
           return;
         }
         const saveRes = await apiPost('/api/progress', {
           day: p.day,
           markSolved: true,
-          advanceToNext: true,
+          advanceToNext: advance,
           rating,
           language: state.activeLang,
           draft: code,
+          saveAcceptedSubmission: acceptedSubPayload,
         });
         if (saveRes.ok) {
           const solvedDayNum = p.day;
@@ -7304,16 +7699,25 @@
           state.progress = saveRes.progress;
           state.tags = saveRes.tags;
           if (saveRes.spacedRepetition) state.spacedRepetition = saveRes.spacedRepetition;
-          const nextDayNum = saveRes.nextDay || state.progress.currentDay || Math.min(state.problems.length, p.day + 1);
-          state.activeDay = nextDayNum;
+          if (advance) {
+            const nextDayNum = saveRes.nextDay || state.progress.currentDay || Math.min(state.problems.length, p.day + 1);
+            state.activeDay = nextDayNum;
+          }
           renderHeaderStats();
           populateSelectors();
-          renderActiveProblem();
+          if (advance) {
+            renderActiveProblem();
+          } else {
+            updateSolvedIndicatorsForActiveDay();
+            updateSubmissionsUI(currentProblem());
+          }
           renderRoadmapAndTags();
           if (window.StudioV2?.onProgressUpdated) window.StudioV2.onProgressUpdated();
           const nextProb = currentProblem();
-          document.getElementById('run-status-summary').textContent =
-            `Day ${solvedDayNum} (${solvedTitle}) submitted and marked Solved. Advanced to Day ${nextProb.day}: ${nextProb.title}.`;
+          const subCnt = getAcceptedSubmissionsForProblem(p).length;
+          document.getElementById('run-status-summary').textContent = advance
+            ? `Day ${solvedDayNum} (${solvedTitle}) submitted (saved to Passed Submissions) and marked Solved. Advanced to Day ${nextProb.day}: ${nextProb.title}.`
+            : `Day ${solvedDayNum} (${solvedTitle}) saved to Passed Submissions (${subCnt} accepted) and marked Solved.`;
         }
       } finally {
         submitBtn.disabled = false;
@@ -7457,12 +7861,17 @@
         accBanner.innerHTML =
           `<span>All ${res.passed} / ${res.total} test cases passed! ${escapeHtml(breakdownStr)}</span>` +
           `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">` +
+          `<button type="button" class="btn-subtle-accent" id="accepted-save-stay-btn" style="padding:4px 10px; font-size:12px;">Save Submission (Stay)</button>` +
           `<button type="button" class="btn-submit ready" id="accepted-submit-next-btn" style="padding:4px 11px; font-size:12px;">${accBtnLabel}</button>` +
           `</div>`;
         container.appendChild(accBanner);
+        const saveStayBtn = document.getElementById('accepted-save-stay-btn');
+        if (saveStayBtn) {
+          saveStayBtn.addEventListener('click', () => submitCurrentSolution('Good', { advance: false }));
+        }
         const accBtn = document.getElementById('accepted-submit-next-btn');
         if (accBtn) {
-          accBtn.addEventListener('click', () => submitCurrentSolution('Good'));
+          accBtn.addEventListener('click', () => submitCurrentSolution('Good', { advance: true }));
         }
       } else {
         if (submitBtn) submitBtn.classList.remove('ready');
@@ -8212,6 +8621,32 @@
       setTraceHighlight(null);
       updateEditorRender();
       scheduleDraftSave();
+      updatePracticeRevertStrip(p);
+    });
+
+    document.getElementById('toggle-submissions-btn')?.addEventListener('click', () => {
+      state.submissionsOpen = !state.submissionsOpen;
+      state.expandedSubmissionId = null;
+      updateSubmissionsUI(currentProblem());
+    });
+    document.getElementById('submissions-close-btn')?.addEventListener('click', () => {
+      state.submissionsOpen = false;
+      updateSubmissionsUI(currentProblem());
+    });
+    document.getElementById('practise-again-btn')?.addEventListener('click', practiseAgainCurrentProblem);
+    document.getElementById('submissions-practise-again-btn')?.addEventListener('click', practiseAgainCurrentProblem);
+    document.getElementById('submissions-revert-latest-btn')?.addEventListener('click', () => {
+      const subs = getAcceptedSubmissionsForProblem(currentProblem());
+      if (subs.length) revertToSubmission(subs[0], subs.length);
+    });
+    document.getElementById('strip-revert-latest-btn')?.addEventListener('click', () => {
+      const subs = getAcceptedSubmissionsForProblem(currentProblem());
+      if (subs.length) revertToSubmission(subs[0], subs.length);
+    });
+    document.getElementById('strip-view-submissions-btn')?.addEventListener('click', () => {
+      state.submissionsOpen = true;
+      state.expandedSubmissionId = null;
+      updateSubmissionsUI(currentProblem());
     });
 
     document.getElementById('reset-layout-btn').addEventListener('click', resetLayoutSizes);
@@ -9123,6 +9558,7 @@
       updateEditorRender();
       updateAutocomplete();
       scheduleDraftSave();
+      updatePracticeRevertStrip();
     });
 
     codeEditorEl.addEventListener('blur', () => {
@@ -9403,6 +9839,11 @@
       runTests,
       runAnalyser,
       submitCurrentSolution,
+      submissionKeyForProblem,
+      getAcceptedSubmissionsForProblem,
+      practiseAgainCurrentProblem,
+      revertToSubmission,
+      updateSubmissionsUI,
     };
 
     init();
