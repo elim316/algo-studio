@@ -137,6 +137,12 @@ BROWSER_RUNTIME_JS = r'''
         currentDay: 1,
         activeCourse: 'schedule-120',
         coursePositions: {},
+        lastVisited: {
+          course: 'schedule-120',
+          day: 1,
+          problemId: null,
+          visitedAt: __utcStampStr(),
+        },
         solvedDays: {},
         solvedLcIds: {},
         bookmarks: [],
@@ -218,7 +224,7 @@ BROWSER_RUNTIME_JS = r'''
       return ordered[(startIdx + 1) % n];
     }
 
-    function __loadProgressLocal(autoAdvance = true) {
+    function __loadProgressLocal(autoAdvance = false) {
       let raw = null;
       try {
         const text = localStorage.getItem(__ALGO_STORAGE_KEY);
@@ -229,6 +235,14 @@ BROWSER_RUNTIME_JS = r'''
       if (raw && typeof raw === 'object') Object.assign(base, raw);
       if (!__ALGO_ALLOWED_COURSES.has(base.activeCourse)) base.activeCourse = 'schedule-120';
       if (!base.coursePositions || typeof base.coursePositions !== 'object') base.coursePositions = {};
+      if (!base.lastVisited || typeof base.lastVisited !== 'object') {
+        base.lastVisited = {
+          course: base.activeCourse,
+          day: Number(base.currentDay || 1),
+          problemId: base.activeCourse !== 'schedule-120' ? (base.coursePositions[base.activeCourse] || null) : null,
+          visitedAt: __utcStampStr(),
+        };
+      }
       if (!base.solvedDays || typeof base.solvedDays !== 'object') base.solvedDays = {};
       if (!base.solvedLcIds || typeof base.solvedLcIds !== 'object') base.solvedLcIds = {};
       if (!base.drafts || typeof base.drafts !== 'object') base.drafts = {};
@@ -595,7 +609,7 @@ BROWSER_RUNTIME_JS = r'''
         prog.solvedDays[dStr] = entry;
         const lcN = __dayToLcNum[dInt];
         if (lcN != null) prog.solvedLcIds[String(lcN)] = entry;
-        if (body.advanceToNext !== false) {
+        if (body.advanceToNext === true) {
           nextDay = __nextUnsolvedDay(prog.solvedDays, dInt);
           prog.currentDay = nextDay;
         }
@@ -606,6 +620,22 @@ BROWSER_RUNTIME_JS = r'''
         delete prog.solvedDays[String(dInt)];
         const lcN = __dayToLcNum[dInt];
         if (lcN != null) delete prog.solvedLcIds[String(lcN)];
+      }
+
+      if (
+        'activeCourse' in body ||
+        'courseProblemId' in body ||
+        'currentDay' in body ||
+        nextDay !== null ||
+        nextProblemId !== null
+      ) {
+        const lvCourse = prog.activeCourse || 'schedule-120';
+        prog.lastVisited = {
+          course: lvCourse,
+          day: Number(prog.currentDay || 1),
+          problemId: lvCourse !== 'schedule-120' ? (prog.coursePositions[lvCourse] || null) : null,
+          visitedAt: __utcStampStr(),
+        };
       }
 
       __saveProgressLocal(prog);
@@ -861,8 +891,7 @@ pyodide_shim.install_browser_patches()
           };
         }
         if (cleanPath === '/api/state') {
-          const isSync = String(path || '').includes('sync=1');
-          const prog = __loadProgressLocal(!isSync);
+          const prog = __loadProgressLocal(false);
           return {
             ok: true,
             progress: prog,

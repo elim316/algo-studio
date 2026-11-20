@@ -148,6 +148,12 @@ def _default_progress() -> dict[str, Any]:
         "currentDay": 1,
         "activeCourse": "schedule-120",
         "coursePositions": {},
+        "lastVisited": {
+            "course": "schedule-120",
+            "day": 1,
+            "problemId": None,
+            "visitedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        },
         "solvedDays": {},
         "solvedLcIds": {},
         "bookmarks": [],
@@ -176,7 +182,7 @@ def _next_unsolved_day(solved_days: dict[str, Any] | list[Any] | set[Any], after
     return min(total_days, max(1, after_day))
 
 
-def load_progress(auto_advance: bool = True) -> dict[str, Any]:
+def load_progress(auto_advance: bool = False) -> dict[str, Any]:
     with _PROGRESS_LOCK:
         PROGRESS_PATH.parent.mkdir(parents=True, exist_ok=True)
         if not PROGRESS_PATH.is_file():
@@ -193,6 +199,14 @@ def load_progress(auto_advance: bool = True) -> dict[str, Any]:
                 base["coursePositions"] = {}
             if not isinstance(base.get("submissions"), dict):
                 base["submissions"] = {}
+            if not isinstance(base.get("lastVisited"), dict):
+                ac = base.get("activeCourse", "schedule-120")
+                base["lastVisited"] = {
+                    "course": ac,
+                    "day": int(base.get("currentDay") or 1),
+                    "problemId": base["coursePositions"].get(ac) if ac != "schedule-120" else None,
+                    "visitedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+                }
             solved = base.get("solvedDays") or {}
             solved_lc = base.setdefault("solvedLcIds", {})
             mirrored = False
@@ -3650,9 +3664,7 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
             return
 
         if route == "/api/state":
-            qs = parse_qs(parsed.query)
-            is_sync = qs.get("sync", ["0"])[0].lower() in ("1", "true", "yes")
-            prog = load_progress(auto_advance=not is_sync)
+            prog = load_progress(auto_advance=False)
             tag_stats = compute_tag_stats(prog.get("solvedDays", {}))
             sr_insights = compute_spaced_repetition_insights(prog)
             self._send_json({
@@ -3977,7 +3989,7 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
                     lc_n = _day_to_lc_num(d_int)
                     if lc_n is not None:
                         prog.setdefault("solvedLcIds", {})[str(lc_n)] = entry
-                    if body.get("advanceToNext", True):
+                    if body.get("advanceToNext", False):
                         next_day = _next_unsolved_day(prog["solvedDays"], after_day=d_int)
                         prog["currentDay"] = next_day
                 if body.get("unmarkSolved") and "day" in body:
@@ -3986,6 +3998,16 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
                     lc_n = _day_to_lc_num(d_int)
                     if lc_n is not None:
                         prog.setdefault("solvedLcIds", {}).pop(str(lc_n), None)
+
+                if any(k in body for k in ("activeCourse", "courseProblemId", "currentDay")) or next_day is not None or next_problem_id is not None:
+                    lv_course = prog.get("activeCourse", "schedule-120")
+                    lv_pid = prog.get("coursePositions", {}).get(lv_course) if lv_course != "schedule-120" else None
+                    prog["lastVisited"] = {
+                        "course": lv_course,
+                        "day": int(prog.get("currentDay") or 1),
+                        "problemId": lv_pid,
+                        "visitedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+                    }
 
                 save_progress(prog)
                 tag_stats = compute_tag_stats(prog.get("solvedDays", {}))

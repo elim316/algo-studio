@@ -3752,7 +3752,7 @@
                   <button type="button" id="stress-test-btn" title="Run boundary, adversarial, and FDE scale throughput benchmarks">FDE Stress Test</button>
                   <button type="button" id="visualise-code-btn" class="btn-subtle-accent">Visualise Code</button>
                   <button type="button" class="btn-primary" id="run-tests-btn">Run Tests</button>
-                  <button type="button" class="btn-submit" id="submit-solution-btn" title="Verify all test cases pass, mark this question solved, and advance to the next unsolved question">Submit &amp; Next →</button>
+                  <button type="button" class="btn-submit" id="submit-solution-btn" title="Verify all test cases pass, save to Passed Submissions, and mark Solved while staying on this question">Submit</button>
                 </div>
               </div>
 
@@ -3867,7 +3867,7 @@
                   <button type="button" id="run-custom-tc-btn" style="padding:3px 8px; font-size:11px;">Trace Custom Input</button>
                 </div>
                 <div id="test-results-container" style="display:flex; flex-direction:column; gap:6px; height:var(--console-box-h, auto); max-height:var(--console-box-max-h, 210px); min-height:60px; overflow-y:auto; resize:vertical;">
-                  <div class="muted">Press Run Tests (or Ctrl+Enter) to execute your code against sample and hidden edge cases, or Submit &amp; Next → when ready.</div>
+                  <div class="muted">Press Run Tests (or Ctrl+Enter) to execute your code against sample and hidden edge cases, or Submit when ready.</div>
                 </div>
               </div>
               <div class="box-resizer-bar" data-resize-box="consoleHeight" title="Drag up or down to resize Test Console height (double-click to reset)"></div>
@@ -6713,7 +6713,7 @@
       const submitBtn = document.getElementById('submit-solution-btn');
       if (submitBtn) {
         submitBtn.classList.remove('ready');
-        submitBtn.textContent = 'Submit & Next →';
+        submitBtn.textContent = 'Submit';
       }
       state.lastRunResult = null;
       resetAnalysisPanel();
@@ -7602,7 +7602,7 @@
     }
 
     async function submitCurrentSolution(rating = 'Good', opts = {}) {
-      const advance = opts.advance !== false;
+      const advance = opts.advance === true;
       const p = currentProblem();
       const code = document.getElementById('code-editor').value;
       const submitBtn = document.getElementById('submit-solution-btn');
@@ -7721,7 +7721,7 @@
         }
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit & Next →';
+        submitBtn.textContent = 'Submit';
       }
     }
 
@@ -7852,17 +7852,16 @@
         setErrorHighlight(null, '');
         if (submitBtn) submitBtn.classList.add('ready');
         summary.textContent = p?.isCurated
-          ? `${res.passed} / ${res.total} test cases passed ${breakdownStr}. Click Submit & Mark Solved to sync across sheets.`
-          : `${res.passed} / ${res.total} test cases passed ${breakdownStr}. Click Submit & Next → to advance!`;
+          ? `${res.passed} / ${res.total} test cases passed ${breakdownStr}. Click Submit to save this passing solution.`
+          : `${res.passed} / ${res.total} test cases passed ${breakdownStr}. Click Submit to save, or Submit & Next → to move on.`;
 
         const accBanner = document.createElement('div');
         accBanner.className = 'accepted-banner';
-        const accBtnLabel = p?.isCurated ? 'Confirm Submit & Mark Solved' : 'Confirm Submit & Next Question →';
         accBanner.innerHTML =
           `<span>All ${res.passed} / ${res.total} test cases passed! ${escapeHtml(breakdownStr)}</span>` +
           `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">` +
-          `<button type="button" class="btn-subtle-accent" id="accepted-save-stay-btn" style="padding:4px 10px; font-size:12px;">Save Submission (Stay)</button>` +
-          `<button type="button" class="btn-submit ready" id="accepted-submit-next-btn" style="padding:4px 11px; font-size:12px;">${accBtnLabel}</button>` +
+          `<button type="button" class="btn-submit ready" id="accepted-save-stay-btn" style="padding:4px 11px; font-size:12px;">Submit &amp; Save</button>` +
+          `<button type="button" class="btn-subtle-accent" id="accepted-submit-next-btn" style="padding:4px 10px; font-size:12px;">Submit &amp; Next →</button>` +
           `</div>`;
         container.appendChild(accBanner);
         const saveStayBtn = document.getElementById('accepted-save-stay-btn');
@@ -9793,7 +9792,9 @@
         } catch (_) {}
 
         applyLayoutSizes(state.progress.layoutSizes || {});
-        state.activeDay = Number(state.progress.currentDay || 1);
+        const lv = state.progress.lastVisited;
+        const bootDay = (lv && lv.course === 'schedule-120' && Number(lv.day)) || Number(state.progress.currentDay || 1);
+        state.activeDay = Math.max(1, Math.min(state.problems.length || 120, bootDay));
         const bootProb = currentProblem();
         if (bootProb?.edgeCaseChecklist?.[0]?.domainId) {
           state.selectedPlaybookDomain = bootProb.edgeCaseChecklist[0].domainId;

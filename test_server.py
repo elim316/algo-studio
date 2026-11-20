@@ -616,20 +616,21 @@ console.log('ALL_JS_SHORTCUT_CHECKS_OK');
             self.assertNotIn("3", unmark_res["progress"]["solvedDays"])
             self.assertEqual(sorted(unmark_res["progress"]["solvedDays"].keys()), ["1", "2"])
 
-            # Viewing already-solved Day 2 and re-syncing via ?sync=1 must NOT yank away from Day 2
+            # Viewing already-solved Day 2 and re-syncing via ?sync=1 or fresh boot (/api/state) remembers last visited Day 2
             post_json("/api/progress", {"currentDay": 2})
             sync_res = get_json("/api/state?sync=1")
             self.assertEqual(sync_res["progress"]["currentDay"], 2)
+            self.assertEqual(sync_res["progress"]["lastVisited"]["day"], 2)
 
-            # Fresh boot (/api/state without sync=1) skips solved Day 2 and lands on unsolved Day 3
+            # Fresh boot (/api/state without sync=1) remembers last visited solved Day 2 without auto-skipping
             boot_res = get_json("/api/state")
-            self.assertEqual(boot_res["progress"]["currentDay"], 3)
+            self.assertEqual(boot_res["progress"]["currentDay"], 2)
+            self.assertEqual(boot_res["progress"]["lastVisited"]["day"], 2)
 
-            # Manual Mark Solved with advanceToNext=False keeps currentDay on Day 3
+            # Manual Mark Solved (default advanceToNext=False) keeps currentDay on Day 3
             readd_res = post_json("/api/progress", {
                 "day": 3,
                 "markSolved": True,
-                "advanceToNext": False,
                 "rating": "Good",
                 "language": "python",
                 "currentDay": 3,
@@ -637,6 +638,7 @@ console.log('ALL_JS_SHORTCUT_CHECKS_OK');
             self.assertTrue(readd_res["ok"])
             self.assertIn("3", readd_res["progress"]["solvedDays"])
             self.assertEqual(readd_res["progress"]["currentDay"], 3)
+            self.assertEqual(readd_res["progress"]["lastVisited"]["day"], 3)
         finally:
             srv.shutdown()
             srv.server_close()

@@ -313,8 +313,8 @@
       acc.innerHTML =
         `<span>SQL Query Accepted (${esc(tc?.stdout || 'Matched expected result set')})</span>` +
         `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">` +
-        `<button type="button" class="btn-subtle-accent" id="accepted-sql-save-stay-btn" style="padding:4px 10px; font-size:12px;">Save Submission (Stay)</button>` +
-        `<button type="button" class="btn-submit ready" id="accepted-sql-submit-btn" style="padding:4px 11px; font-size:12px;">Confirm Submit &amp; Mark Solved</button>` +
+        `<button type="button" class="btn-submit ready" id="accepted-sql-save-stay-btn" style="padding:4px 11px; font-size:12px;">Submit &amp; Save</button>` +
+        `<button type="button" class="btn-subtle-accent" id="accepted-sql-submit-btn" style="padding:4px 10px; font-size:12px;">Submit &amp; Next →</button>` +
         `</div>`;
       container.appendChild(acc);
       document.getElementById('accepted-sql-save-stay-btn')?.addEventListener('click', () => bridge.submitCurrentSolution('Good', { advance: false }));
@@ -1955,9 +1955,7 @@
       if (p.isCurated) {
         openCuratedProblem(p.id);
       } else {
-        bridge.state.activeCuratedId = null;
-        bridge.state.activeDay = p.day;
-        bridge.renderActiveProblem();
+        bridge.switchCourse('schedule-120', { day: p.day });
         bridge.switchTab('workbench');
       }
       const ta = document.getElementById('code-editor');
@@ -2141,9 +2139,13 @@
     wireGlobalListeners();
     await loadCuratedCatalog();
     const bridge = B();
-    const savedCourse = bridge.state.progress?.activeCourse || 'schedule-120';
+    const lv = bridge.state.progress?.lastVisited;
+    const savedCourse = lv?.course || bridge.state.progress?.activeCourse || 'schedule-120';
     if (savedCourse !== 'schedule-120') {
-      const savedPid = bridge.state.progress?.coursePositions?.[savedCourse] || null;
+      const savedPid =
+        (lv?.course === savedCourse && lv?.problemId) ||
+        bridge.state.progress?.coursePositions?.[savedCourse] ||
+        null;
       bridge.switchCourse(savedCourse, { problemId: savedPid, skipFlush: true, skipPersist: true });
     } else {
       bridge.renderHeaderStats();
