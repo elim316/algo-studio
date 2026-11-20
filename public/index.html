@@ -4368,7 +4368,8 @@
 
     function safeExternalUrl(rawUrl, fallback = 'https://leetcode.com') {
       try {
-        const parsed = new URL(String(rawUrl || ''), window.location.origin);
+        const baseOrigin = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'https://leetcode.com';
+        const parsed = new URL(String(rawUrl || ''), baseOrigin);
         if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
           return parsed.href;
         }
