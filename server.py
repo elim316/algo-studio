@@ -1176,6 +1176,59 @@ def _summarize_cross_session_memory(active_day: int) -> str:
         return "Completed problems: tracked in persistent workspace memory."
 
 
+def _get_gemini_key_path() -> Path:
+    return PROGRESS_PATH.parent / ".gemini_api_key"
+
+
+def _mask_gemini_key(key: str) -> str:
+    k = key.strip()
+    if len(k) >= 10:
+        return f"{k[:4]}...{k[-4:]}"
+    return "****" if k else ""
+
+
+def _load_gemini_api_key() -> tuple[str, str]:
+    with _PROGRESS_LOCK:
+        env_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if env_key:
+            return env_key, "env"
+        kp = _get_gemini_key_path()
+        try:
+            if kp.is_file():
+                saved = kp.read_text(encoding="utf-8").strip()
+                if saved:
+                    return saved, "file"
+        except OSError:
+            pass
+        return "", "none"
+
+
+def _save_gemini_api_key(api_key: str) -> None:
+    cleaned = api_key.strip()
+    with _PROGRESS_LOCK:
+        kp = _get_gemini_key_path()
+        kp.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = kp.parent / f".{kp.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        tmp_path.write_text(cleaned + "\n", encoding="utf-8")
+        try:
+            os.chmod(tmp_path, 0o600)
+        except OSError:
+            pass
+        os.replace(tmp_path, kp)
+        os.environ["GEMINI_API_KEY"] = cleaned
+
+
+def _clear_gemini_api_key() -> None:
+    with _PROGRESS_LOCK:
+        kp = _get_gemini_key_path()
+        try:
+            if kp.is_file():
+                kp.unlink()
+        except OSError:
+            pass
+        os.environ.pop("GEMINI_API_KEY", None)
+
+
 def _call_gemini_coach(
     prob: dict[str, Any],
     language: str,
@@ -1189,7 +1242,7 @@ def _call_gemini_coach(
     """Optionally call the public Gemini API when GEMINI_API_KEY is configured; offline by default."""
     if os.environ.get("ALGO_STUDIO_OFFLINE_TESTS") == "1":
         return None
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    api_key, _ = _load_gemini_api_key()
     if not api_key:
         return None
 
@@ -3686,6 +3739,16 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "app": "algo-studio"})
             return
 
+        if route == "/api/gemini-key/status":
+            key_val, key_src = _load_gemini_api_key()
+            self._send_json({
+                "ok": True,
+                "configured": bool(key_val),
+                "masked": _mask_gemini_key(key_val),
+                "source": key_src,
+            })
+            return
+
         if route == "/api/export-progress":
             prog = load_progress(auto_advance=False)
             body = (json.dumps(prog, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
@@ -3864,6 +3927,27 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
             }.get(prompt_mode, "")
             res = diagnose_in_chat(day, lang, code, mode_prefix + msg, model_mode=model_mode)
             self._send_json(res)
+            return
+
+        if route == "/api/gemini-key":
+            if body.get("clear"):
+                _clear_gemini_api_key()
+                self._send_json({"ok": True, "configured": False, "masked": "", "source": "none"})
+                return
+            raw_key = _safe_str(body.get("apiKey", ""), 256).strip()
+            if len(raw_key) < 10 or any(ch.isspace() for ch in raw_key):
+                self._send_json(
+                    {"ok": False, "error": "Invalid API key format. Paste the full Gemini API key without spaces."},
+                    status=400,
+                )
+                return
+            _save_gemini_api_key(raw_key)
+            self._send_json({
+                "ok": True,
+                "configured": True,
+                "masked": _mask_gemini_key(raw_key),
+                "source": "file",
+            })
             return
 
         if route == "/api/progress":

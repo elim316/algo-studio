@@ -1610,6 +1610,122 @@ console.log('CLIENT_SECURITY_OK');
             self.assertIn(needle, html)
         self.assertIn('id="accepted-sql-save-stay-btn"', v2_js)
 
+    def test_v231_gemini_key_setup_and_backend_storage(self) -> None:
+        import http.client
+        import json
+        import stat
+        import threading
+
+        orig_env_key = os.environ.pop("GEMINI_API_KEY", None)
+        key_path = server._get_gemini_key_path()
+        if key_path.is_file():
+            key_path.unlink()
+
+        srv = server._ReusableThreadingHTTPServer(("127.0.0.1", 0), server.AlgoStudioHandler)
+        port = srv.server_address[1]
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            def req_json(method: str, path: str, body: dict | None = None):
+                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
+                try:
+                    raw = json.dumps(body).encode("utf-8") if body is not None else None
+                    hdrs = {"Content-Type": "application/json"} if raw is not None else {}
+                    conn.request(method, path, body=raw, headers=hdrs)
+                    resp = conn.getresponse()
+                    return resp.status, json.loads(resp.read().decode("utf-8"))
+                finally:
+                    conn.close()
+
+            # 1. Starts unconfigured
+            st, st0 = req_json("GET", "/api/gemini-key/status")
+            self.assertEqual(st, 200)
+            self.assertTrue(st0["ok"])
+            self.assertFalse(st0["configured"])
+            self.assertEqual(st0["source"], "none")
+            self.assertEqual(st0["masked"], "")
+
+            # 2. Rejects short or whitespace-containing keys with 400
+            for bad in ("", "short", "contains spaces in key"):
+                st, r_bad = req_json("POST", "/api/gemini-key", {"apiKey": bad})
+                self.assertEqual(st, 400)
+                self.assertFalse(r_bad["ok"])
+
+            # 3. Valid key populates backend file (0600 perms) + os.environ, returns masked preview only
+            dummy_key = "TESTKEY_DUMMY_1234567890_9999"
+            st, r_save = req_json("POST", "/api/gemini-key", {"apiKey": dummy_key})
+            self.assertEqual(st, 200)
+            self.assertTrue(r_save["ok"])
+            self.assertTrue(r_save["configured"])
+            self.assertEqual(r_save["source"], "file")
+            self.assertEqual(r_save["masked"], "TEST...9999")
+            self.assertNotIn(dummy_key, json.dumps(r_save))
+            self.assertTrue(key_path.is_file())
+            self.assertEqual(stat.S_IMODE(key_path.stat().st_mode), 0o600)
+            self.assertEqual(os.environ.get("GEMINI_API_KEY"), dummy_key)
+
+            # 4. GET /api/gemini-key/status never leaks the raw key
+            st, st1 = req_json("GET", "/api/gemini-key/status")
+            self.assertEqual(st, 200)
+            self.assertTrue(st1["configured"])
+            self.assertEqual(st1["masked"], "TEST...9999")
+            self.assertNotIn(dummy_key, json.dumps(st1))
+
+            # 5. User code subprocess still strips the newly populated GEMINI_API_KEY
+            leak_py = (
+                "import os\n"
+                "def twoSum(nums: list[int], target: int) -> list[int]:\n"
+                "    print(os.environ.get('GEMINI_API_KEY', 'STRIPPED'))\n"
+                "    return [0, 1]\n"
+            )
+            r_run = server.execute_user_code(1, "python", leak_py)
+            self.assertIn("STRIPPED", r_run["results"][0]["stdout"])
+            self.assertNotIn(dummy_key, r_run["results"][0]["stdout"])
+
+            # 6. Export progress NEVER includes the saved Gemini key
+            st, exp = req_json("GET", "/api/export-progress")
+            self.assertEqual(st, 200)
+            self.assertNotIn(dummy_key, json.dumps(exp))
+
+            # 7. Clear removes file + env var cleanly
+            st, r_clr = req_json("POST", "/api/gemini-key", {"clear": True})
+            self.assertEqual(st, 200)
+            self.assertFalse(r_clr["configured"])
+            self.assertEqual(r_clr["source"], "none")
+            self.assertFalse(key_path.is_file())
+            self.assertIsNone(os.environ.get("GEMINI_API_KEY"))
+        finally:
+            srv.shutdown()
+            srv.server_close()
+            if key_path.is_file():
+                key_path.unlink()
+            if orig_env_key is None:
+                os.environ.pop("GEMINI_API_KEY", None)
+            else:
+                os.environ["GEMINI_API_KEY"] = orig_env_key
+
+        # 8. Verify guided Gemini setup DOM & JS hooks exist in public/index.html
+        html = (server.PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+        for needle in (
+            'id="copilot-apikey-bar"',
+            'id="copilot-apikey-pill"',
+            'id="copilot-apikey-reveal-btn"',
+            'id="copilot-apikey-test-btn"',
+            'id="copilot-apikey-save-btn"',
+            'id="copilot-apikey-clear-btn"',
+            'id="copilot-apikey-close-btn"',
+            'id="copilot-aistudio-link"',
+            "setupCard.id = 'copilot-hero-setup-card'",
+            'id="copilot-hero-setup-btn"',
+            'https://aistudio.google.com/apikey',
+            '/api/gemini-key/status',
+            '/api/gemini-key',
+            'async function verifyGeminiApiKey(',
+            'async function persistGeminiApiKey(',
+            'async function syncGeminiKeyStatus(',
+        ):
+            self.assertIn(needle, html)
+
 
 if __name__ == "__main__":
     unittest.main()

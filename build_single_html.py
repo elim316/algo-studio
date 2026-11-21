@@ -901,6 +901,12 @@ pyodide_shim.install_browser_patches()
         const boot = await __ensureBootData();
         const cleanPath = String(path || '').split('?')[0];
         if (cleanPath === '/api/health') return { ok: true, app: 'algo-studio', mode: 'single-file' };
+        if (cleanPath === '/api/gemini-key/status') {
+          let k = '';
+          try { k = String(localStorage.getItem('algoStudioGeminiApiKey_v1') || '').trim(); } catch (_) {}
+          const masked = k.length >= 10 ? `${k.slice(0, 4)}...${k.slice(-4)}` : (k ? '****' : '');
+          return { ok: true, configured: Boolean(k), masked, source: k ? 'browser' : 'none' };
+        }
         if (cleanPath === '/api/curated') {
           return {
             ok: true,
@@ -934,6 +940,19 @@ pyodide_shim.install_browser_patches()
         const cleanPath = String(path || '').split('?')[0];
         if (cleanPath === '/api/progress') {
           return __handleLocalProgressPost(body || {});
+        }
+        if (cleanPath === '/api/gemini-key') {
+          if (body?.clear) {
+            try { localStorage.removeItem('algoStudioGeminiApiKey_v1'); } catch (_) {}
+            return { ok: true, configured: false, masked: '', source: 'none' };
+          }
+          const rawKey = String(body?.apiKey || '').trim().slice(0, 256);
+          if (rawKey.length < 10 || /\s/.test(rawKey)) {
+            return { ok: false, error: 'Invalid API key format. Paste the full Gemini API key without spaces.' };
+          }
+          try { localStorage.setItem('algoStudioGeminiApiKey_v1', rawKey); } catch (_) {}
+          const masked = `${rawKey.slice(0, 4)}...${rawKey.slice(-4)}`;
+          return { ok: true, configured: true, masked, source: 'browser' };
         }
         // Native offline TypeScript execution without loading Pyodide when running standard test cases
         if (

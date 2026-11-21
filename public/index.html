@@ -3587,6 +3587,190 @@
     .practice-revert-strip.visible {
       display: flex;
     }
+
+    /* Guided Gemini API Key Setup Panel & Welcome Card inside AI Co-Pilot */
+    .copilot-setup-panel {
+      display: none;
+      flex-direction: column;
+      gap: 9px;
+      padding: 11px 12px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border-col);
+      font-size: 11.5px;
+      max-height: 62%;
+      overflow-y: auto;
+      animation: paneEnter 200ms var(--ease-out);
+    }
+
+    .copilot-setup-panel.open {
+      display: flex;
+    }
+
+    .copilot-setup-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .copilot-setup-title-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .copilot-setup-title {
+      font-weight: 650;
+      font-size: 12.5px;
+      color: var(--fg);
+    }
+
+    .copilot-key-pill {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border-col);
+      background: var(--surface);
+      color: var(--fg-secondary);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .copilot-key-pill.connected {
+      color: var(--success);
+      border-color: color-mix(in srgb, var(--success) 42%, var(--border-col));
+      background: color-mix(in srgb, var(--success) 10%, var(--surface));
+    }
+
+    .copilot-setup-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .copilot-setup-step {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 8px;
+      align-items: start;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--fg-secondary);
+    }
+
+    .copilot-step-num {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border-col);
+      color: var(--fg);
+      font-size: 10.5px;
+      font-weight: 650;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+      margin-top: 1px;
+    }
+
+    .copilot-studio-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-top: 3px;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border-col));
+      background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+      width: fit-content;
+      transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
+    }
+
+    .copilot-studio-link:hover {
+      background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+      border-color: var(--accent);
+    }
+
+    .copilot-key-input-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .copilot-key-actions-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .copilot-key-status {
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--fg-secondary);
+    }
+
+    .copilot-key-status.is-ok {
+      color: var(--success);
+    }
+
+    .copilot-key-status.is-err {
+      color: var(--danger);
+    }
+
+    .copilot-setup-card {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 11px 12px;
+      margin-top: 4px;
+      border-radius: var(--radius-inner);
+      background: var(--surface-2);
+      border: 1px solid var(--border-col);
+      border-left: 3px solid var(--accent);
+      text-align: left;
+    }
+
+    .copilot-setup-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .copilot-setup-card-title {
+      font-size: 12.5px;
+      font-weight: 650;
+      color: var(--fg);
+    }
+
+    .copilot-setup-card-copy {
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--fg-secondary);
+      margin: 0;
+    }
+
+    .copilot-setup-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -3983,25 +4167,49 @@
               <span class="stat-pill" id="copilot-model-badge" style="font-size:10.5px; padding:1px 6px; cursor:pointer;" title="Click to configure optional live Gemini API key">Offline AST</span>
             </div>
             <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-              <button type="button" class="icon-btn" id="copilot-apikey-toggle-btn" title="Connect your free personal Gemini API key for live AI chat (stored only in this browser)" style="font-size:11px; padding:3px 7px;">Gemini Key</button>
+              <button type="button" class="icon-btn" id="copilot-apikey-toggle-btn" title="Open the 3-step Gemini 2.5 setup guide (saved privately in this browser or your local backend)" style="font-size:11px; padding:3px 7px;">Gemini Key</button>
               <button type="button" class="icon-btn" id="clear-copilot-btn" title="Reset conversation to starter prompts" style="font-size:11px; padding:3px 7px;">Reset</button>
               <button type="button" class="icon-btn" id="send-to-chat-btn" title="Copy structured coaching prompt to clipboard" style="display:none; font-size:11px; padding:3px 7px;">Copy Prompt</button>
               <button type="button" class="icon-btn" id="hide-copilot-btn" title="Hide AI Co-Pilot sidebar and return to solo coding" style="font-size:11px; padding:3px 7px;">Hide ◫</button>
             </div>
           </div>
 
-          <!-- Collapsible Optional Bring-Your-Own Free Gemini API Key Setup -->
-          <div id="copilot-apikey-bar" style="display:none; flex-direction:column; gap:6px; padding:9px 11px; background:var(--surface-2); border-bottom:1px solid var(--border-col); font-size:11.5px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-              <span style="font-weight:650; color:var(--fg);">Connect Live Gemini API (Free Key)</span>
-              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--accent); font-size:11px; text-decoration:none;">Get free key ↗</a>
+          <!-- Collapsible Guided Free Gemini API Key Setup Screen -->
+          <div id="copilot-apikey-bar" class="copilot-setup-panel" aria-label="Gemini API key setup">
+            <div class="copilot-setup-head">
+              <div class="copilot-setup-title-wrap">
+                <span class="copilot-setup-title">Gemini 2.5 setup</span>
+                <span id="copilot-apikey-pill" class="copilot-key-pill">Not connected</span>
+              </div>
+              <button type="button" id="copilot-apikey-close-btn" class="icon-btn" style="padding:2px 7px; font-size:11px;" title="Close setup panel">Close</button>
             </div>
-            <div style="display:flex; align-items:center; gap:5px;">
-              <input type="password" id="copilot-apikey-input" class="compact-text-input" placeholder="Paste Gemini API key (saved only on this device)..." aria-label="Gemini API key" autocomplete="off" style="flex:1; font-size:11.5px;">
-              <button type="button" id="copilot-apikey-save-btn" class="btn-primary" style="padding:3px 9px; font-size:11px;">Save</button>
-              <button type="button" id="copilot-apikey-clear-btn" style="padding:3px 8px; font-size:11px;">Clear</button>
+            <ol class="copilot-setup-steps">
+              <li class="copilot-setup-step">
+                <span class="copilot-step-num" aria-hidden="true">1</span>
+                <div>
+                  <div>Open Google AI Studio and sign in with your personal Google account.</div>
+                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="copilot-studio-link" id="copilot-aistudio-link">Open Google AI Studio ↗</a>
+                </div>
+              </li>
+              <li class="copilot-setup-step">
+                <span class="copilot-step-num" aria-hidden="true">2</span>
+                <div>Select Create API key (free tier, no card needed) and copy the key.</div>
+              </li>
+              <li class="copilot-setup-step">
+                <span class="copilot-step-num" aria-hidden="true">3</span>
+                <div>Paste the key below and select Test &amp; Connect. Algo Studio checks it and saves it to the backend automatically.</div>
+              </li>
+            </ol>
+            <div class="copilot-key-input-row">
+              <input type="password" id="copilot-apikey-input" class="compact-text-input" placeholder="Paste Gemini API key (AIza...)" aria-label="Gemini API key" autocomplete="off" spellcheck="false" style="flex:1; min-width:0; font-size:11.5px; font-family:var(--font-mono);">
+              <button type="button" id="copilot-apikey-reveal-btn" class="icon-btn" style="padding:4px 7px; font-size:11px; flex-shrink:0;" aria-pressed="false" title="Show or hide pasted key">Show</button>
             </div>
-            <div id="copilot-apikey-status" class="muted" style="font-size:11px; line-height:1.4;">Saved only in this browser's localStorage (never uploaded to GitHub or included in Export JSON). Without a key, the built-in Offline AST Mentor replies locally.</div>
+            <div class="copilot-key-actions-row">
+              <button type="button" id="copilot-apikey-test-btn" class="btn-primary" style="padding:4px 10px; font-size:11.5px;">Test &amp; Connect</button>
+              <button type="button" id="copilot-apikey-save-btn" style="padding:4px 9px; font-size:11.5px;" title="Save key directly without running a live check">Save offline</button>
+              <button type="button" id="copilot-apikey-clear-btn" style="padding:4px 9px; font-size:11.5px; display:none; margin-left:auto;">Disconnect</button>
+            </div>
+            <div id="copilot-apikey-status" class="copilot-key-status">Stored privately on this device only (browser localStorage on web, or git-ignored data/.gemini_api_key on a local server). Never uploaded to GitHub or included in Export JSON.</div>
           </div>
 
           <!-- Scrollable Hero + Suggestion Pills + Conversation & Visual Widgets -->
@@ -4388,6 +4596,8 @@
       draftDirty: false,
       submissionsOpen: false,
       expandedSubmissionId: null,
+      backendGeminiStatus: { configured: false, masked: '', source: 'none' },
+      copilotSetupDismissed: false,
       initialized: false,
       lastServerSyncMs: 0,
     };
@@ -7027,6 +7237,11 @@
       // Always show the Hero & Suggestion Pills at the top of the right-hand Copilot (like in the user's screenshot!)
       const hero = document.createElement('div');
       hero.className = 'copilot-hero';
+      const configured = isGeminiConfigured();
+      const maskedKey = getActiveGeminiMasked();
+      const heroSubtitle = configured
+        ? `Live Gemini 2.5 connected${maskedKey ? ` (${escapeHtml(maskedKey)})` : ''}.`
+        : 'Offline AST Mentor active. Connect a free Gemini key for live Gemini 2.5 coaching.';
       hero.innerHTML = `
         <svg class="sparkle-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M12 1.5L14.85 9.15L22.5 12L14.85 14.85L12 22.5L9.15 14.85L1.5 12L9.15 9.15L12 1.5Z" fill="url(#sparkGradHero)"/>
@@ -7039,8 +7254,34 @@
           </defs>
         </svg>
         <h2 class="copilot-hero-title">Where should we start?</h2>
-        <div class="muted" style="font-size:11.5px; text-align:center; max-width:290px;">${getSavedGeminiApiKey() ? 'Live Gemini 2.5 coaching is active on this device.' : 'Offline AST Mentor active. Click Gemini Key above for live Gemini 2.5 chat.'}</div>
+        <div class="muted" style="font-size:11.5px; text-align:center; max-width:290px;">${heroSubtitle}</div>
       `;
+
+      if (!configured && !state.copilotSetupDismissed && history.length === 0) {
+        const setupCard = document.createElement('div');
+        setupCard.className = 'copilot-setup-card';
+        setupCard.id = 'copilot-hero-setup-card';
+        setupCard.innerHTML = `
+          <div class="copilot-setup-card-head">
+            <span class="copilot-setup-card-title">Enable live Gemini 2.5 coaching</span>
+            <span class="copilot-key-pill">Free tier</span>
+          </div>
+          <p class="copilot-setup-card-copy">Follow the 3-step guide to paste a personal Google AI Studio key. Algo Studio verifies and saves it to the backend automatically.</p>
+          <div class="copilot-setup-card-actions">
+            <button type="button" class="btn-primary" id="copilot-hero-setup-btn" style="padding:4px 10px; font-size:11.5px;">Open setup guide</button>
+            <button type="button" id="copilot-hero-offline-btn" style="padding:4px 9px; font-size:11.5px;">Continue offline</button>
+          </div>
+        `;
+        setupCard.querySelector('#copilot-hero-setup-btn')?.addEventListener('click', () => {
+          setCopilotSetupPanelOpen(true);
+        });
+        setupCard.querySelector('#copilot-hero-offline-btn')?.addEventListener('click', () => {
+          state.copilotSetupDismissed = true;
+          try { sessionStorage.setItem('algoStudioSetupDismissed_v1', '1'); } catch (_) {}
+          renderInlineChatHistory();
+        });
+        hero.appendChild(setupCard);
+      }
 
       const pillsStack = document.createElement('div');
       pillsStack.className = 'copilot-pills-stack';
@@ -7108,7 +7349,10 @@
       }
       if (isVisible) {
         setTimeout(() => {
-          document.getElementById('inline-chat-input')?.focus();
+          const setupBar = document.getElementById('copilot-apikey-bar');
+          if (!setupBar || !setupBar.classList.contains('open')) {
+            document.getElementById('inline-chat-input')?.focus();
+          }
         }, 60);
       }
     }
@@ -7129,11 +7373,170 @@
       }
     }
 
+    function maskGeminiKey(key) {
+      const k = String(key || '').trim();
+      if (k.length >= 10) return `${k.slice(0, 4)}...${k.slice(-4)}`;
+      return k ? '****' : '';
+    }
+
+    function isGeminiConfigured() {
+      return Boolean(getSavedGeminiApiKey() || state.backendGeminiStatus?.configured);
+    }
+
+    function getActiveGeminiMasked() {
+      const localKey = getSavedGeminiApiKey();
+      if (localKey) return maskGeminiKey(localKey);
+      return String(state.backendGeminiStatus?.masked || '');
+    }
+
+    function getActiveGeminiSource() {
+      const src = String(state.backendGeminiStatus?.source || 'none');
+      if (src === 'file' || src === 'env') return src;
+      if (getSavedGeminiApiKey()) return 'browser';
+      return 'none';
+    }
+
+    function setCopilotSetupStatus(text, tone = '') {
+      const statusEl = document.getElementById('copilot-apikey-status');
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      statusEl.classList.toggle('is-ok', tone === 'ok');
+      statusEl.classList.toggle('is-err', tone === 'err');
+    }
+
+    function updateCopilotSetupPanelState(preserveCustomStatus = false) {
+      const pill = document.getElementById('copilot-apikey-pill');
+      const clearBtn = document.getElementById('copilot-apikey-clear-btn');
+      const keyInput = document.getElementById('copilot-apikey-input');
+      const configured = isGeminiConfigured();
+      const masked = getActiveGeminiMasked();
+      const src = getActiveGeminiSource();
+
+      if (pill) {
+        pill.textContent = configured ? `Connected${masked ? ` (${masked})` : ''}` : 'Not connected';
+        pill.classList.toggle('connected', configured);
+      }
+      if (clearBtn) {
+        clearBtn.style.display = configured ? '' : 'none';
+      }
+      if (keyInput) {
+        keyInput.placeholder = (configured && (src === 'file' || src === 'env'))
+          ? 'Paste a new Gemini API key to replace'
+          : 'Paste Gemini API key (AIza...)';
+      }
+      if (!preserveCustomStatus) {
+        if (src === 'file') {
+          setCopilotSetupStatus('Populated in your local backend (data/.gemini_api_key, 0600 permissions, git-ignored). Active immediately with no restart needed.');
+        } else if (src === 'env') {
+          setCopilotSetupStatus('Loaded from your local GEMINI_API_KEY environment variable. Paste another key above to save a new one to the backend.');
+        } else if (src === 'browser') {
+          setCopilotSetupStatus('Saved privately in this browser only. Never uploaded to GitHub or included in Export JSON.');
+        } else {
+          setCopilotSetupStatus('Stored privately on this device only (browser localStorage on web, or git-ignored data/.gemini_api_key on a local server). Never uploaded to GitHub or included in Export JSON.');
+        }
+      }
+    }
+
+    function setCopilotSetupPanelOpen(open) {
+      const bar = document.getElementById('copilot-apikey-bar');
+      const keyInput = document.getElementById('copilot-apikey-input');
+      if (!bar) return;
+      const shouldOpen = Boolean(open);
+      bar.classList.toggle('open', shouldOpen);
+      if (shouldOpen) {
+        updateCopilotSetupPanelState();
+        if (keyInput) {
+          const browserKey = getSavedGeminiApiKey();
+          if (browserKey) keyInput.value = browserKey;
+          else keyInput.value = '';
+          keyInput.focus();
+        }
+      }
+    }
+
+    async function syncGeminiKeyStatus() {
+      try {
+        const res = await apiGet('/api/gemini-key/status');
+        if (res && res.ok) {
+          state.backendGeminiStatus = {
+            configured: Boolean(res.configured),
+            masked: String(res.masked || ''),
+            source: String(res.source || 'none'),
+          };
+        }
+      } catch (_) {}
+      updateCopilotKeyBadge();
+      updateCopilotSetupPanelState();
+    }
+
+    async function verifyGeminiApiKey(apiKey) {
+      if (navigator.onLine === false) {
+        return { ok: false, offline: true, error: 'You appear to be offline.' };
+      }
+      try {
+        const resp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: 'Reply with OK.' }] }],
+              generationConfig: { maxOutputTokens: 8, temperature: 0 },
+            }),
+          }
+        );
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          const msg = data?.error?.message || `HTTP ${resp.status}`;
+          return { ok: false, status: resp.status, error: msg };
+        }
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, networkError: true, error: err?.message || 'Network error' };
+      }
+    }
+
+    async function persistGeminiApiKey(rawKey) {
+      const cleaned = String(rawKey || '').trim();
+      if (cleaned.length < 10 || /\s/.test(cleaned)) {
+        return { ok: false, error: 'Invalid API key format. Paste the full Gemini API key without spaces.' };
+      }
+      try {
+        const saveRes = await apiPost('/api/gemini-key', { apiKey: cleaned });
+        if (saveRes && saveRes.ok) {
+          state.backendGeminiStatus = {
+            configured: Boolean(saveRes.configured),
+            masked: String(saveRes.masked || maskGeminiKey(cleaned)),
+            source: String(saveRes.source || 'browser'),
+          };
+          if (saveRes.source === 'file' || saveRes.source === 'env') {
+            try { localStorage.removeItem(GEMINI_KEY_STORAGE); } catch (_) {}
+          } else {
+            try { localStorage.setItem(GEMINI_KEY_STORAGE, cleaned); } catch (_) {}
+          }
+          return saveRes;
+        }
+        if (saveRes && saveRes.error && /Invalid API key/i.test(saveRes.error)) {
+          return saveRes;
+        }
+      } catch (_) {}
+      try { localStorage.setItem(GEMINI_KEY_STORAGE, cleaned); } catch (_) {}
+      state.backendGeminiStatus = {
+        configured: true,
+        masked: maskGeminiKey(cleaned),
+        source: 'browser',
+      };
+      return { ok: true, configured: true, masked: maskGeminiKey(cleaned), source: 'browser' };
+    }
+
     function updateCopilotKeyBadge() {
       const m = document.getElementById('copilot-model-select')?.value || 'flash';
       const badge = document.getElementById('copilot-model-badge');
       const keyBtn = document.getElementById('copilot-apikey-toggle-btn');
-      const hasKey = Boolean(getSavedGeminiApiKey());
+      const hasKey = isGeminiConfigured();
       if (badge) {
         if (hasKey) {
           badge.textContent = m === 'pro' ? 'Gemini 2.5 Pro' : 'Gemini 2.5 Flash';
@@ -7297,7 +7700,9 @@
       // Immediately render optimistic user message + thinking status bubble so UI never looks frozen
       const streamEl = document.getElementById('inline-chat-messages');
       let pendingEl = null;
-      const hasLiveKey = Boolean(getSavedGeminiApiKey());
+      const keySrc = getActiveGeminiSource();
+      const useDirectBrowserGemini = keySrc === 'browser' && Boolean(getSavedGeminiApiKey()) && navigator.onLine !== false;
+      const hasLiveKey = isGeminiConfigured();
       if (streamEl) {
         const optUser = document.createElement('div');
         optUser.className = 'chat-msg chat-user';
@@ -7317,9 +7722,9 @@
       }
 
       try {
-        // 1. Try live Gemini directly from browser when the user saved their own Gemini API key
+        // 1. In browser/PWA mode, call live Gemini directly with x-goog-api-key; in local server mode, /api/chat uses the backend key with full traces
         let geminiErrNote = '';
-        if (hasLiveKey && navigator.onLine !== false) {
+        if (useDirectBrowserGemini) {
           const liveRes = await callDirectGeminiMentor(p, code, state.activeLang, message, modelMode, promptMode);
           if (liveRes.attempted && liveRes.ok) {
             renderInlineChatHistory();
@@ -9090,51 +9495,154 @@
     (function wireCopilotApiKeyControls() {
       const bar = document.getElementById('copilot-apikey-bar');
       const toggleBtn = document.getElementById('copilot-apikey-toggle-btn');
+      const closeBtn = document.getElementById('copilot-apikey-close-btn');
       const badgeEl = document.getElementById('copilot-model-badge');
       const keyInput = document.getElementById('copilot-apikey-input');
+      const revealBtn = document.getElementById('copilot-apikey-reveal-btn');
+      const testBtn = document.getElementById('copilot-apikey-test-btn');
       const saveBtn = document.getElementById('copilot-apikey-save-btn');
       const clearBtn = document.getElementById('copilot-apikey-clear-btn');
-      const statusEl = document.getElementById('copilot-apikey-status');
+
+      try {
+        if (sessionStorage.getItem('algoStudioSetupDismissed_v1') === '1') {
+          state.copilotSetupDismissed = true;
+        }
+      } catch (_) {}
 
       function toggleBar() {
         if (!bar) return;
-        const opening = bar.style.display === 'none' || !bar.style.display;
-        bar.style.display = opening ? 'flex' : 'none';
-        if (opening && keyInput) {
-          keyInput.value = getSavedGeminiApiKey();
-          keyInput.focus();
-        }
+        setCopilotSetupPanelOpen(!bar.classList.contains('open'));
       }
 
       toggleBtn?.addEventListener('click', toggleBar);
       badgeEl?.addEventListener('click', toggleBar);
+      closeBtn?.addEventListener('click', () => setCopilotSetupPanelOpen(false));
 
-      saveBtn?.addEventListener('click', () => {
-        const val = String(keyInput?.value || '').trim();
-        if (!val) {
-          if (statusEl) statusEl.textContent = 'Paste a Gemini API key from Google AI Studio first, or click Clear to stay offline.';
-          return;
-        }
-        try {
-          localStorage.setItem(GEMINI_KEY_STORAGE, val);
-        } catch (_) {}
-        updateCopilotKeyBadge();
-        renderInlineChatHistory();
-        if (statusEl) statusEl.textContent = 'Gemini API key saved locally on this device. Live Gemini 2.5 coaching is now active.';
-        setTimeout(() => { if (bar) bar.style.display = 'none'; }, 900);
+      revealBtn?.addEventListener('click', () => {
+        if (!keyInput) return;
+        const showing = keyInput.type === 'text';
+        keyInput.type = showing ? 'password' : 'text';
+        revealBtn.textContent = showing ? 'Show' : 'Hide';
+        revealBtn.setAttribute('aria-pressed', String(!showing));
       });
 
-      clearBtn?.addEventListener('click', () => {
+      function setBusy(isBusy, activeLabel) {
+        if (testBtn) {
+          testBtn.disabled = isBusy;
+          testBtn.textContent = isBusy ? (activeLabel || 'Testing...') : 'Test & Connect';
+        }
+        if (saveBtn) saveBtn.disabled = isBusy;
+        if (clearBtn) clearBtn.disabled = isBusy;
+      }
+
+      async function handleTestAndConnect() {
+        const val = String(keyInput?.value || '').trim();
+        if (!val) {
+          setCopilotSetupStatus('Paste your Gemini API key from Google AI Studio first.', 'err');
+          keyInput?.focus();
+          return;
+        }
+        if (val.length < 10 || /\s/.test(val)) {
+          setCopilotSetupStatus('That key looks incomplete or contains spaces. Copy the full key from Google AI Studio.', 'err');
+          keyInput?.focus();
+          return;
+        }
+        setBusy(true, 'Testing...');
+        setCopilotSetupStatus('Checking your key against Gemini 2.5 Flash...');
         try {
-          localStorage.removeItem(GEMINI_KEY_STORAGE);
-        } catch (_) {}
-        if (keyInput) keyInput.value = '';
-        updateCopilotKeyBadge();
-        renderInlineChatHistory();
-        if (statusEl) statusEl.textContent = 'Key cleared. Using the built-in Offline AST Mentor locally.';
+          const check = await verifyGeminiApiKey(val);
+          if (!check.ok) {
+            if (check.offline || check.networkError) {
+              setCopilotSetupStatus('Could not reach Google AI Studio while offline. Click Save offline to store it now and connect when back online.', 'err');
+            } else {
+              setCopilotSetupStatus(`Key rejected by Gemini API (${check.error || 'invalid key'}). Check you copied the full key from Google AI Studio.`, 'err');
+            }
+            return;
+          }
+          const saved = await persistGeminiApiKey(val);
+          if (!saved || !saved.ok) {
+            setCopilotSetupStatus(saved?.error || 'Could not save API key.', 'err');
+            return;
+          }
+          state.copilotSetupDismissed = false;
+          updateCopilotKeyBadge();
+          updateCopilotSetupPanelState(true);
+          renderInlineChatHistory();
+          const where = saved.source === 'file'
+            ? 'Saved to local backend (data/.gemini_api_key, 0600 permissions).'
+            : 'Saved privately in this browser.';
+          setCopilotSetupStatus(`Connected to Gemini 2.5 (${saved.masked || maskGeminiKey(val)}). ${where}`, 'ok');
+          if (saved.source === 'file' && keyInput) keyInput.value = '';
+          setTimeout(() => setCopilotSetupPanelOpen(false), 1100);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function handleSaveOffline() {
+        const val = String(keyInput?.value || '').trim();
+        if (!val) {
+          setCopilotSetupStatus('Paste a Gemini API key from Google AI Studio first.', 'err');
+          keyInput?.focus();
+          return;
+        }
+        setBusy(true, 'Saving...');
+        try {
+          const saved = await persistGeminiApiKey(val);
+          if (!saved || !saved.ok) {
+            setCopilotSetupStatus(saved?.error || 'Invalid API key format. Paste the full key without spaces.', 'err');
+            return;
+          }
+          state.copilotSetupDismissed = false;
+          updateCopilotKeyBadge();
+          updateCopilotSetupPanelState(true);
+          renderInlineChatHistory();
+          const where = saved.source === 'file'
+            ? 'Populated in your local backend (data/.gemini_api_key, 0600 permissions).'
+            : 'Saved privately in this browser.';
+          setCopilotSetupStatus(`Key saved (${saved.masked || maskGeminiKey(val)}). ${where}`, 'ok');
+          if (saved.source === 'file' && keyInput) keyInput.value = '';
+          setTimeout(() => setCopilotSetupPanelOpen(false), 1100);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function handleDisconnect() {
+        setBusy(true, 'Clearing...');
+        try {
+          try { localStorage.removeItem(GEMINI_KEY_STORAGE); } catch (_) {}
+          try { await apiPost('/api/gemini-key', { clear: true }); } catch (_) {}
+          state.backendGeminiStatus = { configured: false, masked: '', source: 'none' };
+          if (keyInput) {
+            keyInput.value = '';
+            keyInput.type = 'password';
+          }
+          if (revealBtn) {
+            revealBtn.textContent = 'Show';
+            revealBtn.setAttribute('aria-pressed', 'false');
+          }
+          updateCopilotKeyBadge();
+          updateCopilotSetupPanelState(true);
+          renderInlineChatHistory();
+          setCopilotSetupStatus('Disconnected. Using the built-in Offline AST Mentor locally.');
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      testBtn?.addEventListener('click', handleTestAndConnect);
+      saveBtn?.addEventListener('click', handleSaveOffline);
+      clearBtn?.addEventListener('click', handleDisconnect);
+      keyInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleTestAndConnect();
+        }
       });
 
       updateCopilotKeyBadge();
+      updateCopilotSetupPanelState();
     })();
     document.getElementById('clear-copilot-btn').addEventListener('click', async () => {
       const p = currentProblem();
@@ -10083,6 +10591,7 @@
         }
         renderHeaderStats();
         populateSelectors();
+        await syncGeminiKeyStatus();
         renderActiveProblem();
         renderEdgeCasePlaybook();
         renderRoadmapAndTags();
