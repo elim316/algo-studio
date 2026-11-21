@@ -452,6 +452,22 @@ BROWSER_RUNTIME_JS = r'''
         const dInt = Math.max(1, Math.min(totalDays, Math.trunc(Number(body.day || 1))));
         prog.chatHistory[String(dInt)] = [];
       }
+      if (body.appendChatTurn && typeof body.appendChatTurn === 'object') {
+        const ct = body.appendChatTurn;
+        const cKey = String(ct.key || '').slice(0, 100);
+        const uTxt = String(ct.userText || '').slice(0, 16000);
+        const aTxt = String(ct.assistantText || '').slice(0, 16000);
+        if (cKey && uTxt && aTxt) {
+          const hist = Array.isArray(prog.chatHistory[cKey]) ? prog.chatHistory[cKey].slice() : [];
+          hist.push({ role: 'user', text: uTxt, model: String(ct.model || 'flash').slice(0, 32) });
+          hist.push({
+            role: 'assistant',
+            text: aTxt,
+            modelUsed: String(ct.modelUsed || 'Gemini Live').slice(0, 64),
+          });
+          prog.chatHistory[cKey] = hist.slice(-20);
+        }
+      }
       if (body.toggleBookmark && body.key) {
         const k = String(body.key).slice(0, 100);
         const idx = prog.bookmarks.indexOf(k);

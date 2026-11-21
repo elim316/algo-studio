@@ -33,7 +33,7 @@ Switch courses anytime from the Course dropdown next to the problem selector. So
 - Guided Coaching and 20-check rubric scorer: 3-tier progressive hints, mental-model pivots, and a transparent 100-point rubric explaining how to earn full marks.
 - Timed Pressure Recall Drills: Line Recall, Token Blitz, and Blind Master drills with countdown timers, lives, streak multipliers, and saved high scores.
 - Mock Interview and 75-minute OA Simulator: 4-stage 45-minute technical interview simulator and 3-question 75-minute online assessment simulator (Easy DSA, Medium DSA, and SQL 50).
-- Offline AST mentor and Copy for AI: built-in offline debugging assistant with 5 structured prompt modes (`Full Tutor`, `Hints Only`, `Debug Bug`, `Big-O Only`, `Trace Table`), plus optional `GEMINI_API_KEY` support when running the local Python server online.
+- AI Co-Pilot (Offline AST + optional live Gemini 2.5): works offline out of the box with the built-in AST mentor and 5 prompt modes (`Full Tutor`, `Hints Only`, `Debug Bug`, `Big-O Only`, `Trace Table`) plus `Copy for AI`. Click `Gemini Key` in the Co-Pilot header to paste a free personal Google AI Studio API key (stored strictly in your browser's `localStorage`, never uploaded or included in JSON exports) for live conversational Gemini 2.5 Flash and Gemini 2.5 Pro coaching directly in Chrome.
 
 ## Alternative: single-file download (`AlgoStudio.html`)
 

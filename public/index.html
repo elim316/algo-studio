@@ -3968,8 +3968,8 @@
         <aside class="copilot-dock" id="copilot-dock" aria-label="AI Co-Pilot Sidebar">
           <div class="col-resizer col-resizer-left" data-resize-col="copilotColWidth" title="Drag left or right to resize AI Co-Pilot width (double-click to reset)"></div>
           <div class="copilot-top-bar">
-            <div style="display:flex; align-items:center; gap:6px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0;">
                 <path d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4L12 2Z" fill="url(#sparkGradSmall)"/>
                 <defs>
                   <linearGradient id="sparkGradSmall" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
@@ -3979,14 +3979,29 @@
                   </linearGradient>
                 </defs>
               </svg>
-              <span style="font-weight:650; font-size:13px;">AI Co-Pilot</span>
-              <span class="stat-pill" id="copilot-model-badge" style="font-size:10.5px; padding:1px 6px;">Flash + AST Tracer</span>
+              <span style="font-weight:650; font-size:13px; white-space:nowrap;">AI Co-Pilot</span>
+              <span class="stat-pill" id="copilot-model-badge" style="font-size:10.5px; padding:1px 6px; cursor:pointer;" title="Click to configure optional live Gemini API key">Offline AST</span>
             </div>
-            <div style="display:flex; align-items:center; gap:4px;">
+            <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+              <button type="button" class="icon-btn" id="copilot-apikey-toggle-btn" title="Connect your free personal Gemini API key for live AI chat (stored only in this browser)" style="font-size:11px; padding:3px 7px;">Gemini Key</button>
               <button type="button" class="icon-btn" id="clear-copilot-btn" title="Reset conversation to starter prompts" style="font-size:11px; padding:3px 7px;">Reset</button>
-              <button type="button" class="icon-btn" id="send-to-chat-btn" title="Copy structured coaching prompt to clipboard" style="font-size:11px; padding:3px 7px;">Copy Prompt</button>
+              <button type="button" class="icon-btn" id="send-to-chat-btn" title="Copy structured coaching prompt to clipboard" style="display:none; font-size:11px; padding:3px 7px;">Copy Prompt</button>
               <button type="button" class="icon-btn" id="hide-copilot-btn" title="Hide AI Co-Pilot sidebar and return to solo coding" style="font-size:11px; padding:3px 7px;">Hide ◫</button>
             </div>
+          </div>
+
+          <!-- Collapsible Optional Bring-Your-Own Free Gemini API Key Setup -->
+          <div id="copilot-apikey-bar" style="display:none; flex-direction:column; gap:6px; padding:9px 11px; background:var(--surface-2); border-bottom:1px solid var(--border-col); font-size:11.5px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+              <span style="font-weight:650; color:var(--fg);">Connect Live Gemini API (Free Key)</span>
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--accent); font-size:11px; text-decoration:none;">Get free key ↗</a>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+              <input type="password" id="copilot-apikey-input" class="compact-text-input" placeholder="Paste Gemini API key (saved only on this device)..." aria-label="Gemini API key" autocomplete="off" style="flex:1; font-size:11.5px;">
+              <button type="button" id="copilot-apikey-save-btn" class="btn-primary" style="padding:3px 9px; font-size:11px;">Save</button>
+              <button type="button" id="copilot-apikey-clear-btn" style="padding:3px 8px; font-size:11px;">Clear</button>
+            </div>
+            <div id="copilot-apikey-status" class="muted" style="font-size:11px; line-height:1.4;">Saved only in this browser's localStorage (never uploaded to GitHub or included in Export JSON). Without a key, the built-in Offline AST Mentor replies locally.</div>
           </div>
 
           <!-- Scrollable Hero + Suggestion Pills + Conversation & Visual Widgets -->
@@ -4704,7 +4719,9 @@
       const p = currentProblem();
       if (!p) return;
       const lines = document.getElementById('code-editor').value.split('\n').length;
-      document.getElementById('copilot-sharing-label').textContent = `Sharing "Day ${p.day}: ${p.title}"`;
+      document.getElementById('copilot-sharing-label').textContent = p.isCurated
+        ? `Sharing "${p.leetcodeId}: ${p.title}"`
+        : `Sharing "Day ${p.day}: ${p.title}"`;
       document.getElementById('copilot-line-badge').textContent = `${state.activeLang} (${lines}L)`;
     }
 
@@ -7022,6 +7039,7 @@
           </defs>
         </svg>
         <h2 class="copilot-hero-title">Where should we start?</h2>
+        <div class="muted" style="font-size:11.5px; text-align:center; max-width:290px;">${getSavedGeminiApiKey() ? 'Live Gemini 2.5 coaching is active on this device.' : 'Offline AST Mentor active. Click Gemini Key above for live Gemini 2.5 chat.'}</div>
       `;
 
       const pillsStack = document.createElement('div');
@@ -7101,6 +7119,161 @@
       setCopilotVisible(isCurrentlyHidden);
     }
 
+    const GEMINI_KEY_STORAGE = 'algoStudioGeminiApiKey_v1';
+
+    function getSavedGeminiApiKey() {
+      try {
+        return String(localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim();
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function updateCopilotKeyBadge() {
+      const m = document.getElementById('copilot-model-select')?.value || 'flash';
+      const badge = document.getElementById('copilot-model-badge');
+      const keyBtn = document.getElementById('copilot-apikey-toggle-btn');
+      const hasKey = Boolean(getSavedGeminiApiKey());
+      if (badge) {
+        if (hasKey) {
+          badge.textContent = m === 'pro' ? 'Gemini 2.5 Pro' : 'Gemini 2.5 Flash';
+          badge.style.color = 'var(--success)';
+          badge.style.borderColor = 'color-mix(in srgb, var(--success) 45%, var(--border-col))';
+        } else {
+          badge.textContent = m === 'pro' ? 'Offline Rubric' : 'Offline AST';
+          badge.style.color = '';
+          badge.style.borderColor = '';
+        }
+      }
+      if (keyBtn) {
+        keyBtn.textContent = hasKey ? 'Gemini Key ✓' : 'Gemini Key';
+        keyBtn.classList.toggle('btn-subtle-accent', hasKey);
+      }
+    }
+
+    function sanitiseLiveMentorReply(text) {
+      if (!text) return '';
+      let out = String(text).replace(/\*\*/g, '').replace(/__/g, '');
+      out = out.replace(/\u2014/g, ', ').replace(/\u2013/g, ' to ').replace(/\u00b7/g, ' | ');
+      out = out.replace(/ -{2} /g, ', ');
+      return out.trim();
+    }
+
+    async function callDirectGeminiMentor(p, code, language, userMessage, modelMode, promptMode) {
+      const apiKey = getSavedGeminiApiKey();
+      if (!apiKey || navigator.onLine === false) return { attempted: false };
+
+      const modelId = modelMode === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+      const numberedCode = String(code || '').split('\n').map((ln, idx) => `${idx + 1}: ${ln}`).join('\n');
+      const modeRule = {
+        hints_only: 'STRICT MODE: HINTS ONLY. Do not reveal the full code solution. Give Socratic nudges and invariant cues only.',
+        debug_bug: 'MODE: DEBUG BUG. Pinpoint the exact line, off-by-one, or edge-case bug and explain how to fix it.',
+        explain_complexity: 'MODE: EXPLAIN COMPLEXITY. Derive exact Time and Space Big-O and contrast with the brute-force approach.',
+        visualize_trace: 'MODE: VISUALISE TRACE. Walk through a compact step-by-step state table on Example 1 showing variable transitions.',
+        full_tutor: 'MODE: FULL TUTOR. Answer the user directly and concisely with interview-grade clarity.',
+      }[promptMode] || '';
+
+      let runSummary = 'Tests have not been run yet for this edit.';
+      const lr = state.lastRunResult;
+      if (lr && lr.tracedCode === code && lr.tracedLanguage === language) {
+        if (!lr.ok) {
+          runSummary = `Execution error on Line ${lr.errorLine || 1}: ${lr.error || 'Runtime/Syntax error'}`;
+        } else if (lr.allPassed) {
+          runSummary = `All ${lr.passed}/${lr.total} test cases passed.`;
+        } else {
+          const f = (lr.results || []).find((r) => !r.passed);
+          runSummary = f
+            ? `Passed ${lr.passed}/${lr.total}. First failure on Test ${f.index} (${f.label || ''}): input=${JSON.stringify(f.input)}, expected=${JSON.stringify(f.expected)}, actual=${JSON.stringify(f.error || f.actual)}`
+            : `Passed ${lr.passed}/${lr.total} tests.`;
+        }
+      }
+
+      const mm = p.mentalModel || {};
+      const cx = p.complexity || {};
+      const sysPrompt =
+        'You are a sharp, supportive coding interview mentor inside Algo Studio coaching for SWE and FDE interviews.\n' +
+        'Rules:\n' +
+        '- Answer the user\'s exact question first in natural British English (visualise, optimise, analyse, behaviour, colour).\n' +
+        '- Never use bold markdown (**), em dashes, en dashes, or middle dots. Wrap code tokens and identifiers in single backticks `...`.\n' +
+        '- Keep replies concise (2 to 4 short paragraphs or crisp bullet points) referencing the user\'s actual code lines.\n' +
+        (modeRule ? `- ${modeRule}\n` : '') +
+        `\nActive Problem: ${p.leetcodeId || ''} - ${p.title || ''}\n` +
+        `Tags: ${(p.tags || []).join(', ')}\n` +
+        `Statement Summary: ${String(p.statement || '').slice(0, 700)}\n` +
+        `Optimal Mental Pivot: ${mm.optimalPivot || ''}\n` +
+        `Target Complexity: ${cx.optimalTime || ''} time, ${cx.optimalSpace || ''} space\n` +
+        `Latest Test Status: ${runSummary}\n\n` +
+        `User's Current ${language} Code (with line numbers):\n${numberedCode}`;
+
+      const probKey = activeProblemKey(p);
+      const existingHist = Array.isArray(state.progress?.chatHistory?.[probKey]) ? state.progress.chatHistory[probKey] : [];
+      const contents = [];
+      for (const h of existingHist.slice(-8)) {
+        const txt = String(h?.text || '').trim();
+        if (!txt) continue;
+        contents.push({
+          role: h.role === 'user' ? 'user' : 'model',
+          parts: [{ text: txt }],
+        });
+      }
+      contents.push({ role: 'user', parts: [{ text: userMessage }] });
+
+      try {
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: sysPrompt }] },
+              contents,
+              generationConfig: { temperature: 0.45, maxOutputTokens: 700 },
+            }),
+          }
+        );
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          const errMsg = data?.error?.message || `HTTP ${resp.status}`;
+          return { attempted: true, ok: false, error: errMsg };
+        }
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const rawReply = parts.map((pt) => pt?.text || '').join('').trim();
+        if (!rawReply) {
+          return { attempted: true, ok: false, error: 'Empty Gemini response' };
+        }
+        const reply = sanitiseLiveMentorReply(rawReply);
+        const modelLabel = modelMode === 'pro' ? 'Gemini 2.5 Pro (Live)' : 'Gemini 2.5 Flash (Live)';
+        const saveRes = await apiPost('/api/progress', {
+          appendChatTurn: {
+            key: probKey,
+            userText: userMessage,
+            assistantText: reply,
+            model: modelMode,
+            modelUsed: modelLabel,
+          },
+        });
+        if (saveRes && saveRes.ok && saveRes.progress) {
+          state.progress = saveRes.progress;
+        } else {
+          if (!state.progress.chatHistory) state.progress.chatHistory = {};
+          const nextH = [...existingHist, { role: 'user', text: userMessage, model: modelMode }, { role: 'assistant', text: reply, modelUsed: modelLabel }].slice(-20);
+          state.progress.chatHistory[probKey] = nextH;
+        }
+        return {
+          attempted: true,
+          ok: true,
+          reply,
+          modelUsed: modelLabel,
+          history: state.progress.chatHistory?.[probKey] || [],
+        };
+      } catch (err) {
+        return { attempted: true, ok: false, error: err?.message || String(err) };
+      }
+    }
+
     async function sendInlineChatMessage(customPrompt = '') {
       const p = currentProblem();
       const inputEl = document.getElementById('inline-chat-input');
@@ -7114,12 +7287,57 @@
 
       if (!customPrompt) inputEl.value = '';
       sendBtn.disabled = true;
+      const origSendText = sendBtn.textContent;
+      sendBtn.textContent = '...';
 
       const code = document.getElementById('code-editor').value;
       const promptMode = document.getElementById('copilot-prompt-mode-select')?.value || 'full_tutor';
       state.progress.drafts[`${activeProblemKey(p)}:${state.activeLang}`] = code;
 
+      // Immediately render optimistic user message + thinking status bubble so UI never looks frozen
+      const streamEl = document.getElementById('inline-chat-messages');
+      let pendingEl = null;
+      const hasLiveKey = Boolean(getSavedGeminiApiKey());
+      if (streamEl) {
+        const optUser = document.createElement('div');
+        optUser.className = 'chat-msg chat-user';
+        optUser.setAttribute('data-optimistic-chat', '1');
+        optUser.textContent = message;
+        streamEl.appendChild(optUser);
+
+        pendingEl = document.createElement('div');
+        pendingEl.className = 'chat-msg chat-assistant';
+        pendingEl.setAttribute('data-optimistic-chat', '1');
+        const thinkLabel = hasLiveKey && navigator.onLine !== false
+          ? (modelMode === 'pro' ? 'Asking Gemini 2.5 Pro...' : 'Asking Gemini 2.5 Flash...')
+          : 'Analysing your code with Offline AST Mentor (first run loads Python engine)...';
+        pendingEl.innerHTML = `<div class="muted" style="font-size:11.5px;">${escapeHtml(thinkLabel)}</div>`;
+        streamEl.appendChild(pendingEl);
+        streamEl.scrollTop = streamEl.scrollHeight;
+      }
+
       try {
+        // 1. Try live Gemini directly from browser when the user saved their own Gemini API key
+        let geminiErrNote = '';
+        if (hasLiveKey && navigator.onLine !== false) {
+          const liveRes = await callDirectGeminiMentor(p, code, state.activeLang, message, modelMode, promptMode);
+          if (liveRes.attempted && liveRes.ok) {
+            renderInlineChatHistory();
+            if (message.toLowerCase().includes('visual') || message.toLowerCase().includes('animat')) {
+              state.visFrameIdx = 0;
+              toggleVisualiserPlayback();
+            }
+            return;
+          }
+          if (liveRes.attempted && !liveRes.ok) {
+            geminiErrNote = `Live Gemini unavailable (${liveRes.error || 'request failed'}). Falling back to Offline AST Mentor:\n\n`;
+            if (pendingEl) {
+              pendingEl.innerHTML = `<div class="muted" style="font-size:11.5px;">Live Gemini unavailable (${escapeHtml(liveRes.error || 'error')}). Switching to Offline AST Mentor...</div>`;
+            }
+          }
+        }
+
+        // 2. Built-in Offline AST Mentor (Pyodide WASM or local Python server)
         const res = await apiPost('/api/chat', {
           ...activeProblemIdPayload(p),
           language: state.activeLang,
@@ -7128,9 +7346,16 @@
           model: modelMode,
           promptMode,
         });
-        if (res.ok) {
+        if (res && res.ok) {
           if (!state.progress.chatHistory) state.progress.chatHistory = {};
-          state.progress.chatHistory[activeProblemKey(p)] = res.history || [];
+          const savedHist = Array.isArray(res.history) ? res.history.slice() : [];
+          if (geminiErrNote && savedHist.length > 0 && savedHist[savedHist.length - 1]?.role === 'assistant') {
+            savedHist[savedHist.length - 1] = {
+              ...savedHist[savedHist.length - 1],
+              text: geminiErrNote + savedHist[savedHist.length - 1].text,
+            };
+          }
+          state.progress.chatHistory[activeProblemKey(p)] = savedHist;
           if (res.executionFrames && res.executionFrames.length > 0) {
             state.tracedCode = code;
             state.tracedLang = state.activeLang;
@@ -7150,9 +7375,18 @@
             state.visFrameIdx = 0;
             toggleVisualiserPlayback();
           }
+        } else if (pendingEl) {
+          pendingEl.innerHTML =
+            `<div style="color:var(--danger); font-size:12px;">AI Co-Pilot error: ${escapeHtml(res?.error || 'Could not reach mentor runtime. Try connecting a free Gemini Key above or use Copy for AI.')}</div>`;
+        }
+      } catch (err) {
+        if (pendingEl) {
+          pendingEl.innerHTML =
+            `<div style="color:var(--danger); font-size:12px;">AI Co-Pilot error: ${escapeHtml(err?.message || String(err))}</div>`;
         }
       } finally {
         sendBtn.disabled = false;
+        sendBtn.textContent = origSendText || '↵';
       }
     }
 
@@ -8849,11 +9083,59 @@
         sendInlineChatMessage();
       }
     });
-    document.getElementById('copilot-model-select').addEventListener('change', (e) => {
-      const m = e.target.value;
-      const badge = document.getElementById('copilot-model-badge');
-      badge.textContent = m === 'pro' ? 'Pro 5-Axis Rubric' : 'Flash + AST Tracer';
+    document.getElementById('copilot-model-select').addEventListener('change', () => {
+      updateCopilotKeyBadge();
     });
+
+    (function wireCopilotApiKeyControls() {
+      const bar = document.getElementById('copilot-apikey-bar');
+      const toggleBtn = document.getElementById('copilot-apikey-toggle-btn');
+      const badgeEl = document.getElementById('copilot-model-badge');
+      const keyInput = document.getElementById('copilot-apikey-input');
+      const saveBtn = document.getElementById('copilot-apikey-save-btn');
+      const clearBtn = document.getElementById('copilot-apikey-clear-btn');
+      const statusEl = document.getElementById('copilot-apikey-status');
+
+      function toggleBar() {
+        if (!bar) return;
+        const opening = bar.style.display === 'none' || !bar.style.display;
+        bar.style.display = opening ? 'flex' : 'none';
+        if (opening && keyInput) {
+          keyInput.value = getSavedGeminiApiKey();
+          keyInput.focus();
+        }
+      }
+
+      toggleBtn?.addEventListener('click', toggleBar);
+      badgeEl?.addEventListener('click', toggleBar);
+
+      saveBtn?.addEventListener('click', () => {
+        const val = String(keyInput?.value || '').trim();
+        if (!val) {
+          if (statusEl) statusEl.textContent = 'Paste a Gemini API key from Google AI Studio first, or click Clear to stay offline.';
+          return;
+        }
+        try {
+          localStorage.setItem(GEMINI_KEY_STORAGE, val);
+        } catch (_) {}
+        updateCopilotKeyBadge();
+        renderInlineChatHistory();
+        if (statusEl) statusEl.textContent = 'Gemini API key saved locally on this device. Live Gemini 2.5 coaching is now active.';
+        setTimeout(() => { if (bar) bar.style.display = 'none'; }, 900);
+      });
+
+      clearBtn?.addEventListener('click', () => {
+        try {
+          localStorage.removeItem(GEMINI_KEY_STORAGE);
+        } catch (_) {}
+        if (keyInput) keyInput.value = '';
+        updateCopilotKeyBadge();
+        renderInlineChatHistory();
+        if (statusEl) statusEl.textContent = 'Key cleared. Using the built-in Offline AST Mentor locally.';
+      });
+
+      updateCopilotKeyBadge();
+    })();
     document.getElementById('clear-copilot-btn').addEventListener('click', async () => {
       const p = currentProblem();
       const res = await apiPost('/api/progress', { ...activeProblemIdPayload(p), clearChat: true });

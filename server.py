@@ -3250,16 +3250,56 @@ def diagnose_curated_in_chat(
     )
     if gemini_reply:
         reply_text = gemini_reply
+        used_model_label = "Gemini 2.5 Pro (Live)" if model_mode == "pro" else "Gemini 2.5 Flash (Live)"
     else:
+        used_model_label = "Offline AST Mentor"
+        q_low = user_message.lower().strip()
         top_gaps = analysis.get("improvementPlan", [])[:3]
-        if prompt_mode == "hints_only":
-            hints = prob.get("hints") or [mm.get("optimalPivot", "")]
+        hints = prob.get("hints") or [mm.get("optimalPivot", "")]
+        assistant_turns = [m for m in hist if m.get("role") == "assistant"]
+        hint_idx = min(len(hints) - 1, len(assistant_turns) % max(1, len(hints))) if hints else 0
+        failing_tc = next((tc for tc in (run_res.get("results") or []) if not tc.get("passed")), None)
+        if prompt_mode == "hints_only" or any(k in q_low for k in ("hint", "nudge", "stuck", "propose")):
             reply_text = (
-                f"Socratic nudge for {prob['leetcodeId']}: {prob['title']} (no full code):\n"
-                f"- Hint 1: {hints[0]}\n"
+                f"Socratic nudge for {prob['leetcodeId']}: {prob['title']} (Hint {hint_idx + 1}):\n"
+                f"- {hints[hint_idx]}\n"
                 f"- Core invariant: {mm.get('optimalPivot', '')}\n"
-                f"- Check your current tests ({run_res.get('passed', 0)}/{run_res.get('total', 0)} passed): where does your state first diverge?"
+                f"- Current test status: {run_res.get('passed', 0)}/{run_res.get('total', 0)} passed. Where does your state first diverge?"
             )
+        elif prompt_mode == "explain_complexity" or any(k in q_low for k in ("complex", "big o", "time", "space", "fast", "slow", "brute")):
+            reply_text = (
+                f"Complexity breakdown for {prob['leetcodeId']}: {prob['title']}:\n"
+                f"- Brute-force trap: `{prob['complexity'].get('bruteTime', 'O(N^2)')}` time, `{prob['complexity'].get('bruteSpace', 'O(1)')}` space ({mm.get('instinctiveTrap', '')})\n"
+                f"- Target optimal: `{prob['complexity'].get('optimalTime', 'O(N)')}` time, `{prob['complexity'].get('optimalSpace', 'O(N)')}` space.\n"
+                f"- Why it holds: {prob['complexity'].get('derivation') or mm.get('optimalPivot', '')}"
+            )
+        elif any(k in q_low for k in ("explain", "walkthrough", "how", "optimal", "solution", "idea", "intuition", "approach")):
+            wt = prob.get("walkthrough") or mm.get("optimalPivot", "")
+            reply_text = (
+                f"How the optimal approach works for {prob['leetcodeId']}: {prob['title']}:\n"
+                f"- Core invariant: {mm.get('optimalPivot', '')}\n"
+                f"- Walkthrough: {wt}\n"
+                f"- Target complexity: `{prob['complexity'].get('optimalTime', 'O(N)')}` time, `{prob['complexity'].get('optimalSpace', 'O(N)')}` space."
+            )
+        elif prompt_mode == "debug_bug" or any(k in q_low for k in ("bug", "error", "wrong", "fail", "fix", "issue", "crash", "syntax")):
+            if run_res.get("error"):
+                reply_text = (
+                    f"Execution stopped with `{run_res.get('error')}`"
+                    + (f" on Line {run_res.get('errorLine')}." if run_res.get("errorLine") else ".")
+                    + f"\n- Check your syntax and types around that line, keeping the core invariant in mind: {mm.get('optimalPivot', '')}"
+                )
+            elif failing_tc:
+                reply_text = (
+                    f"Test {failing_tc.get('index', 1)} (`{failing_tc.get('label', '')}`) failed:\n"
+                    f"- Input: `{json.dumps(failing_tc.get('input'))}`\n"
+                    f"- Expected: `{json.dumps(failing_tc.get('expected'))}` | Actual: `{json.dumps(failing_tc.get('actual') if failing_tc.get('error') is None else failing_tc.get('error'))}`\n"
+                    f"- Core invariant to check: {mm.get('optimalPivot', '')}"
+                )
+            else:
+                reply_text = (
+                    f"All {run_res.get('total', 0)} tests currently pass (`{analysis.get('totalScore')}/100` rubric score). "
+                    f"Connect a free Gemini API key via the Gemini Key button above for open-ended line-by-line chat."
+                )
         elif run_res.get("allPassed"):
             reply_text = (
                 f"All {run_res.get('total', 0)} test cases pass for {prob['title']} (`{analysis.get('totalScore')}/100` rubric score).\n"
@@ -3283,7 +3323,7 @@ def diagnose_curated_in_chat(
             "role": "assistant",
             "text": reply_text,
             "highlightLine": highlight_line,
-            "modelUsed": f"{model_mode.capitalize()} Co-Pilot ({prompt_mode.replace('_', ' ')})",
+            "modelUsed": used_model_label,
         })
         prog["chatHistory"][problem_id] = hist[-20:]
         save_progress(prog)
@@ -3291,7 +3331,7 @@ def diagnose_curated_in_chat(
     return {
         "ok": True,
         "reply": reply_text,
-        "modelUsed": f"{model_mode.capitalize()} Co-Pilot",
+        "modelUsed": used_model_label,
         "highlightLine": highlight_line,
         "executionFrames": exec_frames,
         "runResult": run_res,
@@ -3879,6 +3919,20 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
                 elif body.get("clearChat") and "day" in body:
                     d_int = _parse_day_field(body["day"])
                     prog.setdefault("chatHistory", {})[str(d_int)] = []
+                if isinstance(body.get("appendChatTurn"), dict):
+                    ct = body["appendChatTurn"]
+                    c_key = _safe_str(ct.get("key", ""), 100)
+                    u_txt = _safe_str(ct.get("userText", ""), _MAX_CHAT_MSG_CHARS)
+                    a_txt = _safe_str(ct.get("assistantText", ""), _MAX_CHAT_MSG_CHARS)
+                    if c_key and u_txt and a_txt:
+                        c_hist = list(prog.setdefault("chatHistory", {}).get(c_key) or [])
+                        c_hist.append({"role": "user", "text": u_txt, "model": _safe_str(ct.get("model", "flash"), 32)})
+                        c_hist.append({
+                            "role": "assistant",
+                            "text": a_txt,
+                            "modelUsed": _safe_str(ct.get("modelUsed", "Gemini Live"), 64),
+                        })
+                        prog["chatHistory"][c_key] = c_hist[-20:]
                 if body.get("toggleBookmark") and body.get("key"):
                     bms = list(prog.get("bookmarks") or [])
                     k = _safe_str(body["key"], 100)
