@@ -1820,6 +1820,22 @@ console.log('CLIENT_SECURITY_OK');
         ):
             self.assertIn(needle, v2_js)
 
+    def test_v233_python_tutor_inline_code_editing(self) -> None:
+        html = (server.PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+        for needle in (
+            'id="pt-edit-code-btn"',
+            'id="pt-run-trace-btn"',
+            'id="pt-run-status-pill"',
+            'id="pt-inline-editor-wrap"',
+            'id="pt-inline-gutter"',
+            'id="pt-inline-editor"',
+            'function setPtEditMode(',
+            'async function runFromPythonTutor(',
+            'function updatePtRunStatusPill(',
+            'function updatePtInlineGutter(',
+        ):
+            self.assertIn(needle, html)
+
 
 if __name__ == "__main__":
     unittest.main()

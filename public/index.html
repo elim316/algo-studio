@@ -4033,6 +4033,135 @@
       line-height: 1.45;
       color: var(--fg-secondary);
     }
+
+    /* Direct In-Place Code Editor inside Python Tutor */
+    .pt-code-mini-btn.is-run {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .pt-code-mini-btn.is-run:hover {
+      filter: brightness(1.06);
+    }
+
+    .pt-code-mini-btn.is-active {
+      background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+      color: var(--accent);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .pt-run-status-pill {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 650;
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border-col);
+      background: var(--surface);
+      color: var(--fg-secondary);
+      white-space: nowrap;
+      cursor: pointer;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pt-run-status-pill.is-pass {
+      background: var(--success-bg);
+      border-color: color-mix(in srgb, var(--success) 42%, var(--border-col));
+      color: var(--success);
+    }
+
+    .pt-run-status-pill.is-warn {
+      background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+      border-color: color-mix(in srgb, var(--warn) 45%, var(--border-col));
+      color: var(--warn);
+    }
+
+    .pt-run-status-pill.is-err {
+      background: var(--danger-bg);
+      border-color: color-mix(in srgb, var(--danger) 48%, var(--border-col));
+      color: var(--danger);
+    }
+
+    .pt-inline-editor-wrap {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      background: var(--surface);
+    }
+
+    .pt-code-pane.is-editing .pt-code-lines {
+      display: none;
+    }
+
+    .pt-code-pane.is-editing .pt-inline-editor-wrap {
+      display: flex;
+    }
+
+    .pt-inline-editor-body {
+      display: flex;
+      align-items: flex-start;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      background: var(--surface);
+    }
+
+    .pt-inline-gutter {
+      width: 34px;
+      flex-shrink: 0;
+      min-height: 100%;
+      padding: 8px 6px 8px 4px;
+      background: var(--surface-2);
+      border-right: 1px solid var(--border-col);
+      color: var(--fg-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 20px;
+      text-align: right;
+      white-space: pre;
+      user-select: none;
+      position: sticky;
+      left: 0;
+      z-index: 2;
+    }
+
+    .pt-inline-textarea {
+      flex: 1;
+      min-width: 0;
+      min-height: 100%;
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 8px 10px;
+      background: var(--surface);
+      color: var(--fg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 20px;
+      tab-size: 4;
+      white-space: pre;
+      overflow: hidden;
+    }
+
+    .pt-inline-textarea.pt-code-wrap {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .pt-inline-editor-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 4px 8px;
+      border-top: 1px solid var(--border-col);
+      background: var(--surface-2);
+      font-size: 10.5px;
+    }
   </style>
 </head>
 <body>
@@ -4379,11 +4508,14 @@
               <div class="pt-workspace-split" id="pt-workspace-split">
                 <div class="pt-code-pane" id="pt-code-pane" aria-label="Synchronised traced code view">
                   <div class="pt-code-pane-header">
-                    <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+                    <div style="display:flex; align-items:center; gap:5px; min-width:0; flex-wrap:wrap;">
                       <span class="pt-code-pane-title" id="pt-code-pane-title">Your Code Trace</span>
-                      <span class="pt-code-stale-badge" id="pt-code-stale-badge" style="display:none;">Edited since trace</span>
+                      <span class="pt-code-stale-badge" id="pt-code-stale-badge" style="display:none;">Edited</span>
+                      <button type="button" class="pt-run-status-pill" id="pt-run-status-pill" style="display:none;" title="Latest test run status (click to edit in Python Tutor)"></button>
                     </div>
-                    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0; flex-wrap:wrap;">
+                      <button type="button" id="pt-edit-code-btn" class="pt-code-mini-btn" title="Edit code directly inside Python Tutor without scrolling up (or double-click any code line)">Edit Code</button>
+                      <button type="button" id="pt-run-trace-btn" class="pt-code-mini-btn is-run" title="Run tests and refresh Python Tutor frames in place (Ctrl+Enter)">Run &amp; Trace</button>
                       <button type="button" id="pt-wrap-btn" class="pt-code-mini-btn" title="Wrap long code lines inside the trace pane">Wrap</button>
                       <button type="button" id="pt-font-dec-btn" class="pt-code-mini-btn" title="Decrease traced code font size">A-</button>
                       <button type="button" id="pt-font-inc-btn" class="pt-code-mini-btn" title="Increase traced code font size">A+</button>
@@ -4391,6 +4523,23 @@
                     </div>
                   </div>
                   <div class="pt-code-lines" id="pt-code-lines" role="region" aria-label="Line-by-line execution trace"></div>
+                  <div class="pt-inline-editor-wrap" id="pt-inline-editor-wrap" aria-label="In-place Python Tutor code editor">
+                    <div class="pt-inline-editor-body">
+                      <div class="pt-inline-gutter tabular" id="pt-inline-gutter" aria-hidden="true">1</div>
+                      <textarea
+                        id="pt-inline-editor"
+                        class="pt-inline-textarea"
+                        spellcheck="false"
+                        autocapitalize="off"
+                        autocomplete="off"
+                        autocorrect="off"
+                        aria-label="Edit code directly inside Python Tutor"
+                      ></textarea>
+                    </div>
+                    <div class="pt-inline-editor-footer">
+                      <span class="muted">Synced live with editor above. Press Ctrl+Enter to Run &amp; Trace, Esc to view trace.</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="pt-split-resizer" id="pt-split-resizer" title="Drag left or right to resize Code vs Visualisation width (double-click to reset)"></div>
                 <div class="pt-stage-wrap" id="pt-stage-wrap">
@@ -5627,10 +5776,15 @@
     }
 
     function syncPtCodePaneOnEditorInput() {
-      if (state.visMode !== 'user') return;
       const ta = document.getElementById('code-editor');
+      const ptTa = document.getElementById('pt-inline-editor');
       const staleBadge = document.getElementById('pt-code-stale-badge');
       if (!ta) return;
+      if (ptTa && document.activeElement !== ptTa && ptTa.value !== ta.value) {
+        ptTa.value = ta.value;
+        if (typeof updatePtInlineGutter === 'function') updatePtInlineGutter();
+      }
+      if (state.visMode !== 'user') return;
       if (!state.userFrames.length) {
         renderPtCodePane(null, true);
         return;
@@ -5670,7 +5824,9 @@
         : (state.optimalTracedCode || p?.solutionCode?.python || '');
 
       if (titleEl) {
-        titleEl.textContent = isUserMode ? 'Your Code' : 'Optimal Code';
+        titleEl.textContent = (typeof ptEditMode !== 'undefined' && ptEditMode)
+          ? 'Editing Code'
+          : (isUserMode ? 'Your Code' : 'Optimal Code');
       }
       if (staleBadge) {
         const isEdited = isUserMode && state.userFrames.length > 0 && Boolean(state.tracedCode) && editorVal !== state.tracedCode;
@@ -5732,7 +5888,7 @@
         const bpDot = hasBp ? '<span class="gutter-bp-dot" title="Breakpoint active"></span>' : '';
         const highlighted = srcLines[i].length > 0 ? highlightCodeHtml(srcLines[i]) : '&nbsp;';
         html +=
-          `<div class="${rowCls}" data-pt-line="${ln}" title="Click to jump trace to Line ${ln} (click line number to toggle breakpoint)">` +
+          `<div class="${rowCls}" data-pt-line="${ln}" title="Click to jump trace to Line ${ln}, double-click to edit right here (click line number to toggle breakpoint)">` +
           `<span class="pt-code-arrows">${arrowHtml}</span>` +
           `<span class="pt-code-ln" data-pt-bp-line="${ln}">${bpDot}${ln}</span>` +
           `<span class="pt-code-src">${highlighted}</span>` +
@@ -5741,6 +5897,13 @@
       linesEl.innerHTML = html;
 
       linesEl.querySelectorAll('.pt-code-line').forEach((rowEl) => {
+        rowEl.addEventListener('dblclick', (ev) => {
+          if (ev.target.closest('.pt-code-ln')) return;
+          const ln = Number(rowEl.getAttribute('data-pt-line')) || 1;
+          if (typeof setPtEditMode === 'function') {
+            setPtEditMode(true, ln);
+          }
+        });
         rowEl.addEventListener('click', (ev) => {
           const ln = Number(rowEl.getAttribute('data-pt-line'));
           const clickedLnCol = Boolean(ev.target.closest('.pt-code-ln'));
@@ -7206,6 +7369,8 @@
         submitBtn.textContent = 'Submit';
       }
       state.lastRunResult = null;
+      if (typeof setPtEditMode === 'function') setPtEditMode(false);
+      if (typeof updatePtRunStatusPill === 'function') updatePtRunStatusPill(null);
       resetAnalysisPanel();
       updateSolvedIndicatorsForActiveDay();
       document.getElementById('personal-notes-input').value = state.progress.notes?.[probKey] || '';
@@ -9015,8 +9180,11 @@
             sendInlineChatMessage(`Explain the ${res.errorType || 'syntax error'} on Line ${errLn || 1} and how to fix it.`);
           });
         }
+        if (typeof updatePtRunStatusPill === 'function') updatePtRunStatusPill(res);
         return;
       }
+
+      if (typeof updatePtRunStatusPill === 'function') updatePtRunStatusPill(res);
 
       const visPassed = res.visiblePassed ?? (res.results || []).filter((r) => !r.hidden && r.passed).length;
       const visTotal = res.visibleTotal ?? (res.results || []).filter((r) => !r.hidden).length;
@@ -9920,13 +10088,141 @@
     let ptCodeFontSize = 12;
     let ptCodeWrapped = false;
     let ptExpandedModal = false;
+    let ptEditMode = false;
+    let ptLastErrorLine = null;
+
+    function updatePtInlineGutter() {
+      const ptTa = document.getElementById('pt-inline-editor');
+      const gutter = document.getElementById('pt-inline-gutter');
+      const bodyEl = ptTa?.parentElement;
+      if (!ptTa || !gutter) return;
+      const count = Math.max(1, ptTa.value.split('\n').length);
+      const nums = [];
+      for (let i = 1; i <= count; i++) nums.push(String(i));
+      gutter.textContent = nums.join('\n');
+      const rowH = ptCodeFontSize + 8;
+      const bodyH = bodyEl ? bodyEl.clientHeight : 200;
+      const h = Math.max(bodyH, count * rowH + 24);
+      ptTa.style.height = `${h}px`;
+      gutter.style.minHeight = `${h}px`;
+    }
+
+    function updatePtRunStatusPill(res) {
+      const pill = document.getElementById('pt-run-status-pill');
+      if (!pill) return;
+      pill.classList.remove('is-pass', 'is-warn', 'is-err');
+      ptLastErrorLine = null;
+      if (!res) {
+        pill.style.display = 'none';
+        pill.textContent = '';
+        return;
+      }
+      pill.style.display = 'inline-flex';
+      if (!res.ok) {
+        const ln = Number(res.errorLine) || null;
+        ptLastErrorLine = ln;
+        pill.classList.add('is-err');
+        pill.textContent = ln ? `Error L${ln}` : 'Run error';
+        pill.title = `${res.error || 'Runtime or syntax error'} (click to edit in Python Tutor)`;
+      } else if (res.allPassed) {
+        pill.classList.add('is-pass');
+        pill.textContent = `${res.passed}/${res.total} passed`;
+        pill.title = 'All tests passed (click to edit in Python Tutor)';
+      } else {
+        const firstFail = (res.results || []).find((r) => !r.passed);
+        const failLn = Number(res.errorLine || res.highlightLine || firstFail?.errorLine || firstFail?.suspectLine) || null;
+        ptLastErrorLine = failLn;
+        pill.classList.add(res.syntaxErrorPartialRun ? 'is-err' : 'is-warn');
+        pill.textContent = res.syntaxErrorPartialRun && failLn
+          ? `Syntax L${failLn}`
+          : `${res.passed ?? 0}/${res.total ?? 0} passed${failLn ? ` (L${failLn})` : ''}`;
+        pill.title = 'Click to edit directly inside Python Tutor';
+      }
+    }
+
+    function setPtEditMode(editing, focusLine = null) {
+      const pane = document.getElementById('pt-code-pane');
+      const ptTa = document.getElementById('pt-inline-editor');
+      const mainTa = document.getElementById('code-editor');
+      const btn = document.getElementById('pt-edit-code-btn');
+      const titleEl = document.getElementById('pt-code-pane-title');
+      ptEditMode = Boolean(editing);
+
+      if (ptEditMode) {
+        if (!state.ptCodePaneVisible) togglePtCodePane(true);
+        state.visMode = 'user';
+        stopVisualiserPlayback();
+        if (ptTa && mainTa) {
+          ptTa.value = mainTa.value;
+          updatePtInlineGutter();
+        }
+      }
+      if (pane) pane.classList.toggle('is-editing', ptEditMode);
+      if (btn) {
+        btn.textContent = ptEditMode ? 'View Trace' : 'Edit Code';
+        btn.classList.toggle('is-active', ptEditMode);
+        btn.setAttribute('aria-pressed', String(ptEditMode));
+      }
+      if (titleEl) {
+        titleEl.textContent = ptEditMode ? 'Editing Code' : (state.visMode === 'user' ? 'Your Code' : 'Optimal Code');
+      }
+
+      if (ptEditMode && ptTa) {
+        ptTa.focus();
+        const targetLn = Number(focusLine) || (activeVisFrames()[state.visFrameIdx]?.line ? Number(activeVisFrames()[state.visFrameIdx].line) : null);
+        if (targetLn && targetLn >= 1) {
+          const lines = ptTa.value.split('\n');
+          const clamped = Math.min(lines.length, targetLn);
+          let offset = 0;
+          for (let i = 0; i < clamped - 1; i++) offset += lines[i].length + 1;
+          const lineEnd = offset + (lines[clamped - 1] || '').length;
+          ptTa.setSelectionRange(lineEnd, lineEnd);
+          const rowH = ptCodeFontSize + 8;
+          if (ptTa.parentElement) ptTa.parentElement.scrollTop = Math.max(0, (clamped - 3) * rowH);
+          updatePtInlineGutter();
+        }
+      } else {
+        const frames = activeVisFrames();
+        const curFrame = frames.length ? frames[Math.max(0, Math.min(frames.length - 1, state.visFrameIdx))] : null;
+        renderPtCodePane(curFrame, state.visMode === 'user');
+        requestAnimationFrame(drawPythonTutorArrows);
+      }
+    }
+
+    async function runFromPythonTutor() {
+      const ptTa = document.getElementById('pt-inline-editor');
+      const mainTa = document.getElementById('code-editor');
+      const runBtn = document.getElementById('pt-run-trace-btn');
+      if (ptEditMode && ptTa && mainTa && mainTa.value !== ptTa.value) {
+        mainTa.value = ptTa.value;
+        state.draftDirty = true;
+        updateEditorRender();
+      }
+      setPtEditMode(false);
+      state.visMode = 'user';
+      if (runBtn) {
+        runBtn.disabled = true;
+        runBtn.textContent = 'Tracing...';
+      }
+      try {
+        await runTests(false);
+      } finally {
+        if (runBtn) {
+          runBtn.disabled = false;
+          runBtn.textContent = 'Run & Trace';
+        }
+      }
+    }
 
     function applyPtCodeFontSize(px) {
       ptCodeFontSize = Math.max(10, Math.min(16, Number(px) || 12));
-      const linesEl = document.getElementById('pt-code-lines');
-      if (linesEl) {
-        linesEl.style.fontSize = `${ptCodeFontSize}px`;
-        linesEl.style.lineHeight = `${ptCodeFontSize + 8}px`;
+      const lh = `${ptCodeFontSize + 8}px`;
+      for (const id of ['pt-code-lines', 'pt-inline-editor', 'pt-inline-gutter']) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.fontSize = `${ptCodeFontSize}px`;
+          el.style.lineHeight = lh;
+        }
       }
       try { localStorage.setItem('algoStudioPtFont_v1', String(ptCodeFontSize)); } catch (_) {}
     }
@@ -9934,8 +10230,10 @@
     function togglePtCodeWrap(forceState = null) {
       ptCodeWrapped = forceState === null ? !ptCodeWrapped : Boolean(forceState);
       const linesEl = document.getElementById('pt-code-lines');
+      const ptTa = document.getElementById('pt-inline-editor');
       const btn = document.getElementById('pt-wrap-btn');
       if (linesEl) linesEl.classList.toggle('pt-code-wrap', ptCodeWrapped);
+      if (ptTa) ptTa.classList.toggle('pt-code-wrap', ptCodeWrapped);
       if (btn) btn.classList.toggle('btn-subtle-accent', ptCodeWrapped);
       try { localStorage.setItem('algoStudioPtWrap_v1', ptCodeWrapped ? '1' : '0'); } catch (_) {}
     }
@@ -9945,7 +10243,11 @@
       const linesEl = document.getElementById('pt-code-lines');
       if (!splitEl || !linesEl) return;
       if (ptExpandedModal) togglePtExpandedModal(false);
-      const lineCount = Math.max(1, linesEl.querySelectorAll('.pt-code-line').length || (document.getElementById('code-editor')?.value || '').split('\n').length);
+      const lineCount = Math.max(
+        1,
+        (ptEditMode ? (document.getElementById('pt-inline-editor')?.value || '').split('\n').length : linesEl.querySelectorAll('.pt-code-line').length) ||
+          (document.getElementById('code-editor')?.value || '').split('\n').length
+      );
       const rowH = ptCodeFontSize + 8;
       const contentH = Math.max(lineCount * rowH, linesEl.scrollHeight || 0);
       const desired = Math.max(260, Math.min(960, contentH + 52));
@@ -9968,6 +10270,71 @@
       setTimeout(() => requestAnimationFrame(drawPythonTutorArrows), 50);
     }
 
+    document.getElementById('pt-edit-code-btn')?.addEventListener('click', () => setPtEditMode(!ptEditMode));
+    document.getElementById('pt-run-trace-btn')?.addEventListener('click', () => runFromPythonTutor());
+    document.getElementById('pt-run-status-pill')?.addEventListener('click', () => setPtEditMode(true, ptLastErrorLine));
+    document.getElementById('pt-inline-editor')?.addEventListener('input', (e) => {
+      const mainTa = document.getElementById('code-editor');
+      const val = e.target.value;
+      updatePtInlineGutter();
+      if (mainTa) {
+        mainTa.value = val;
+        state.draftDirty = true;
+        updateEditorRender();
+        scheduleDraftSave();
+      }
+    });
+    document.getElementById('pt-inline-editor')?.addEventListener('keydown', (e) => {
+      const ptTa = e.currentTarget;
+      const start = ptTa.selectionStart || 0;
+      const end = ptTa.selectionEnd || 0;
+      const val = ptTa.value;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runFromPythonTutor();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setPtEditMode(false);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (!e.shiftKey && start === end) {
+          ptTa.value = val.slice(0, start) + '    ' + val.slice(end);
+          ptTa.setSelectionRange(start + 4, start + 4);
+        } else {
+          const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+          const lineEndIdx = val.indexOf('\n', end);
+          const blockEnd = lineEndIdx === -1 ? val.length : lineEndIdx;
+          const block = val.slice(lineStart, blockEnd);
+          const updated = block
+            .split('\n')
+            .map((ln) => (e.shiftKey ? ln.replace(/^ {1,4}|\t/, '') : '    ' + ln))
+            .join('\n');
+          ptTa.value = val.slice(0, lineStart) + updated + val.slice(blockEnd);
+          ptTa.setSelectionRange(lineStart, lineStart + updated.length);
+        }
+        ptTa.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        const curBefore = val.slice(lineStart, start);
+        const baseIndent = (curBefore.match(/^\s*/) || [''])[0];
+        const trimmed = curBefore.trimEnd();
+        const extra = /[:\{\(\[]$/.test(trimmed) ? '    ' : '';
+        const ins = '\n' + baseIndent + extra;
+        ptTa.value = val.slice(0, start) + ins + val.slice(end);
+        ptTa.setSelectionRange(start + ins.length, start + ins.length);
+        ptTa.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
     document.getElementById('pt-fit-height-btn')?.addEventListener('click', fitPtHeightToCode);
     document.getElementById('pt-expand-modal-btn')?.addEventListener('click', () => togglePtExpandedModal());
     document.getElementById('pt-modal-backdrop')?.addEventListener('click', () => togglePtExpandedModal(false));
@@ -9975,8 +10342,12 @@
     document.getElementById('pt-font-dec-btn')?.addEventListener('click', () => applyPtCodeFontSize(ptCodeFontSize - 1));
     document.getElementById('pt-font-inc-btn')?.addEventListener('click', () => applyPtCodeFontSize(ptCodeFontSize + 1));
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && ptExpandedModal) {
-        togglePtExpandedModal(false);
+      if (e.key === 'Escape') {
+        if (ptEditMode) {
+          setPtEditMode(false);
+        } else if (ptExpandedModal) {
+          togglePtExpandedModal(false);
+        }
       }
     });
     try {
@@ -9996,11 +10367,12 @@
     });
     document.getElementById('vis-mode-optimal-btn').addEventListener('click', async () => {
       stopVisualiserPlayback();
+      if (ptEditMode) setPtEditMode(false);
       const p = currentProblem();
       state.visMode = 'optimal';
       state.visFrameIdx = 0;
       renderVisualiserFrame();
-      await loadOptimalTraceFrames(p.day, state.activeVisTcIdx || 0);
+      if (p) await loadOptimalTraceFrames(p.isCurated ? p.id : p.day, state.activeVisTcIdx || 0);
     });
 
     if (typeof ResizeObserver !== 'undefined') {
