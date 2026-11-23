@@ -460,11 +460,15 @@ BROWSER_RUNTIME_JS = r'''
         if (cKey && uTxt && aTxt) {
           const hist = Array.isArray(prog.chatHistory[cKey]) ? prog.chatHistory[cKey].slice() : [];
           hist.push({ role: 'user', text: uTxt, model: String(ct.model || 'flash').slice(0, 32) });
-          hist.push({
+          const assistantEntry = {
             role: 'assistant',
             text: aTxt,
             modelUsed: String(ct.modelUsed || 'Gemini Live').slice(0, 64),
-          });
+          };
+          if (ct.visualWidget && typeof ct.visualWidget === 'object' && !Array.isArray(ct.visualWidget)) {
+            assistantEntry.visualWidget = ct.visualWidget;
+          }
+          hist.push(assistantEntry);
           prog.chatHistory[cKey] = hist.slice(-20);
         }
       }

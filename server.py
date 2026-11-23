@@ -1495,6 +1495,95 @@ def _answer_specific_coding_question(
     return None, None
 
 
+def _build_visual_storyboard_widget(
+    prob: dict[str, Any],
+    loop_depth: int,
+    uses_hash: bool,
+    exec_frames: list[dict[str, Any]],
+) -> dict[str, Any]:
+    mm = prob.get("mentalModel") or {}
+    cx = prob.get("complexity") or {}
+    examples = prob.get("examples") or []
+    ex0 = examples[0] if examples and isinstance(examples[0], dict) else None
+    raw_steps = prob.get("traceSteps") or []
+    trace_steps = [
+        {
+            "step": int(s.get("step", idx + 1)),
+            "focus": str(s.get("focus", ""))[:140],
+            "stateVars": str(s.get("stateVars", ""))[:220],
+            "note": str(s.get("note", ""))[:280],
+        }
+        for idx, s in enumerate(raw_steps[:10])
+        if isinstance(s, dict)
+    ]
+    pid_raw = str(prob.get("id") or prob.get("day") or "")
+    return {
+        "type": "visual_storyboard",
+        "title": f"Visual walkthrough: {prob.get('title', 'Problem')}",
+        "problemId": pid_raw,
+        "isCurated": bool(prob.get("isCurated") or pid_raw.startswith(("lc-", "sql-"))),
+        "isSql": bool(prob.get("isSql")),
+        "tags": [str(t) for t in (prob.get("tags") or [])[:4]],
+        "loopDepth": int(loop_depth),
+        "usesHash": bool(uses_hash),
+        "bruteTime": str(cx.get("bruteTime", "O(N^2)")),
+        "optimalTime": str(cx.get("optimalTime", "O(N)")),
+        "optimalSpace": str(cx.get("optimalSpace", "O(N)")),
+        "trap": str(mm.get("instinctiveTrap", ""))[:360],
+        "pivot": str(mm.get("optimalPivot", ""))[:360],
+        "trigger": str(mm.get("triggerSignal", ""))[:260],
+        "example": {
+            "input": str(ex0.get("input", ""))[:180],
+            "output": str(ex0.get("output", ""))[:120],
+            "explanation": str(ex0.get("explanation", ""))[:240],
+        } if ex0 else None,
+        "traceSteps": trace_steps,
+        "hasUserFrames": bool(exec_frames),
+    }
+
+
+def _build_visual_ascii_explanation(prob: dict[str, Any], exec_frames: list[dict[str, Any]]) -> str:
+    mm = prob.get("mentalModel") or {}
+    cx = prob.get("complexity") or {}
+    tags = [str(t) for t in (prob.get("tags") or [])[:3]]
+    tag_label = " / ".join(tags) if tags else "Optimal invariant"
+    examples = prob.get("examples") or []
+    ex0 = examples[0] if examples and isinstance(examples[0], dict) else {}
+    in_str = str(ex0.get("input", "")).strip()
+    out_str = str(ex0.get("output", "")).strip()
+
+    diagram_lines: list[str] = []
+    if in_str:
+        diagram_lines.append(f"Input   : {in_str}")
+    diagram_lines.append(f"Pattern : [{tag_label}] ({cx.get('bruteTime', 'O(N^2)')} -> {cx.get('optimalTime', 'O(N)')})")
+    if out_str:
+        diagram_lines.append(f"Output  : {out_str}")
+
+    trace_steps = prob.get("traceSteps") or []
+    if trace_steps:
+        diagram_lines.append("")
+        diagram_lines.append("Step-by-step state flow:")
+        for idx, st in enumerate(trace_steps[:5], start=1):
+            focus = str(st.get("focus", "")).strip()
+            sv = str(st.get("stateVars", "")).strip()
+            diagram_lines.append(f"  {idx}. {focus}  |  {sv}")
+
+    diagram_block = "```text\n" + "\n".join(diagram_lines) + "\n```"
+    wt = str(prob.get("walkthrough") or "").strip()
+    lines = [
+        f"Visual picture for {prob.get('leetcodeId', '')} ({prob.get('title', '')}):",
+        diagram_block,
+        f"- Mental pivot: {mm.get('optimalPivot', '')}",
+    ]
+    if wt:
+        lines.append(f"- How it flows: {wt}")
+    if exec_frames:
+        lines.append(f"- Your code traced `{len(exec_frames)}` live steps. Step through the visual storyboard card below or click `Animate in Tutor` to watch pointers and memory update live.")
+    else:
+        lines.append("- Use the interactive visual storyboard below to step through each state frame, or click `Animate in Tutor` for the live memory diagram.")
+    return "\n".join(lines)
+
+
 def diagnose_in_chat(
     day: int,
     language: str,
@@ -1502,6 +1591,7 @@ def diagnose_in_chat(
     user_message: str,
     model_mode: str = "flash",
     history: list[dict[str, Any]] | None = None,
+    prompt_mode: str = "full_tutor",
 ) -> dict[str, Any]:
     """Right-hand AI Co-Pilot that acts like a conversational Gemini mentor with live AST & trace awareness."""
     prob = cd.PROBLEMS_BY_DAY.get(day)
@@ -1574,18 +1664,9 @@ def diagnose_in_chat(
         or (failing_tc.get("suspectLine") if failing_tc else None)
     )
     exec_frames = run_res.get("executionFrames") or []
-    visual_widget: dict[str, Any] = {
-        "type": "execution_animator",
-        "title": f"Live Step-by-Step Visual Trace ({len(exec_frames)} frames)" if exec_frames else "Interactive Dry-Run Visualiser",
-        "mode": "user" if exec_frames else "optimal",
-        "loopDepth": depth,
-        "usesHash": uses_hash,
-        "bruteTime": prob["complexity"]["bruteTime"],
-        "optimalTime": prob["complexity"]["optimalTime"],
-        "optimalSpace": prob["complexity"]["optimalSpace"],
-    }
+    visual_widget: dict[str, Any] = _build_visual_storyboard_widget(prob, depth, uses_hash, exec_frames)
 
-    if any(k in q_lower for k in ("contrast", "complex", "big o", "time", "space", "fast", "slow", "brute")):
+    if any(k in q_lower for k in ("contrast", "complex", "big o", "time", "space", "fast", "slow", "brute")) and prompt_mode != "visual_explainer":
         visual_widget = {
             "type": "complexity_contrast",
             "title": "Brute-Force vs Optimal Operations Visualiser",
@@ -1596,7 +1677,7 @@ def diagnose_in_chat(
             "optimalTime": prob["complexity"]["optimalTime"],
             "optimalSpace": prob["complexity"]["optimalSpace"],
         }
-    elif any(k in q_lower for k in ("propose", "mental", "think", "approach", "start", "stuck", "hint", "nudge")):
+    elif any(k in q_lower for k in ("propose", "mental", "think", "approach", "start", "stuck", "hint", "nudge")) and prompt_mode != "visual_explainer":
         visual_widget = {
             "type": "invariant_diagram",
             "title": "Visual Mental Pivot: Trap vs Invariant",
@@ -1607,11 +1688,21 @@ def diagnose_in_chat(
         }
 
     # 1. Try optional Gemini API (if GEMINI_API_KEY is configured and online); otherwise use built-in offline mentor
+    llm_mode_prefix = {
+        "visual_explainer": (
+            "[MODE: VISUAL EXPLAINER - Start with a clean monospace ASCII diagram of the data structure and pointers, "
+            "then walk through Example 1 step by step showing state transitions visually, and compare naive vs optimal.]\n"
+        ),
+        "hints_only": "[STRICT MODE: HINTS ONLY - Do NOT give the full code solution. Give Socratic nudges only.]\n",
+        "debug_bug": "[MODE: DEBUG BUG - Pinpoint the exact bug, line, and expected vs actual mismatch.]\n",
+        "explain_complexity": "[MODE: EXPLAIN COMPLEXITY - Derive exact Time and Space Big-O vs optimal.]\n",
+        "visualize_trace": "[MODE: VISUALISE TRACE - Walk through a concrete step-by-step state table on Case 1.]\n",
+    }.get(prompt_mode, "")
     gemini_reply = _call_gemini_coach(
         prob=prob,
         language=language,
         code=code,
-        user_message=user_message,
+        user_message=llm_mode_prefix + user_message,
         run_res=run_res,
         analysis=analysis,
         history=hist,
@@ -1652,19 +1743,8 @@ def diagnose_in_chat(
             else:
                 reply_parts.append(specific_diag)
 
-        elif any(k in q_lower for k in ("visual", "animat", "draw", "diagram", "step-by-step", "trace")):
-            if exec_frames:
-                reply_parts.append(
-                    f"I have traced `{len(exec_frames)}` live execution steps from your `{language}` code on Test Case 1.\n"
-                    f"- Notice how the Animator below steps through each line up to Line {exec_frames[-1].get('line')} "
-                    f"while updating your local variables (`{', '.join(list((exec_frames[-1].get('locals') or {}).keys())[:5])}`).\n"
-                    f"- Use the `Play`, `Prev`, and `Next` controls under the console to scrub through each iteration."
-                )
-            else:
-                reply_parts.append(
-                    f"I have loaded the `{len(prob.get('traceSteps', []))}`-step visual invariant trace for `{prob['title']}` in the Animator.\n"
-                    f"- Watch how `{prob['tags'][0]}` updates memory in a single pass without redundant inner-loop scans."
-                )
+        elif any(k in q_lower for k in ("visual", "animat", "draw", "diagram", "step-by-step", "step by step", "trace", "storyboard")) or (prompt_mode == "visual_explainer" and not asks_about_syntax_or_error and not any(k in q_lower for k in ("hint", "nudge", "stuck", "propose", "contrast", "complex", "big o", "brute"))):
+            reply_parts.append(_build_visual_ascii_explanation(prob, exec_frames))
 
         elif any(k in q_lower for k in ("contrast", "complex", "big o", "time", "space", "fast", "slow", "brute")):
             is_suboptimal_nested = depth >= 2 and "O(N)" in prob["complexity"]["optimalTime"] and not sig.get("usesStackQueue")
@@ -3282,10 +3362,21 @@ def diagnose_curated_in_chat(
     run_res = analysis.get("runResult") or {}
     mm = prob.get("mentalModel") or {}
     exec_frames = run_res.get("executionFrames") or []
+    sig = analysis.get("structuralSignals") or {}
+    visual_widget = _build_visual_storyboard_widget(
+        prob,
+        int(sig.get("maxLoopDepth", 0)),
+        bool(sig.get("usesHash")),
+        exec_frames,
+    )
 
     # Try optional Gemini API (if GEMINI_API_KEY is set and online); otherwise use built-in offline mentor
     prob_for_llm = {**prob, "day": 0}
     mode_prefix = {
+        "visual_explainer": (
+            "[MODE: VISUAL EXPLAINER - Start with a clean monospace ASCII diagram of the data structure and pointers, "
+            "then walk through Example 1 step by step showing state transitions visually, and compare naive vs optimal.]\n"
+        ),
         "hints_only": "[STRICT MODE: HINTS ONLY - Do NOT give the full code solution. Give Socratic nudges only.]\n",
         "debug_bug": "[MODE: DEBUG BUG - Pinpoint the exact bug, line, and expected vs actual mismatch.]\n",
         "explain_complexity": "[MODE: EXPLAIN COMPLEXITY - Derive exact Time and Space Big-O vs optimal.]\n",
@@ -3326,14 +3417,6 @@ def diagnose_curated_in_chat(
                 f"- Target optimal: `{prob['complexity'].get('optimalTime', 'O(N)')}` time, `{prob['complexity'].get('optimalSpace', 'O(N)')}` space.\n"
                 f"- Why it holds: {prob['complexity'].get('derivation') or mm.get('optimalPivot', '')}"
             )
-        elif any(k in q_low for k in ("explain", "walkthrough", "how", "optimal", "solution", "idea", "intuition", "approach")):
-            wt = prob.get("walkthrough") or mm.get("optimalPivot", "")
-            reply_text = (
-                f"How the optimal approach works for {prob['leetcodeId']}: {prob['title']}:\n"
-                f"- Core invariant: {mm.get('optimalPivot', '')}\n"
-                f"- Walkthrough: {wt}\n"
-                f"- Target complexity: `{prob['complexity'].get('optimalTime', 'O(N)')}` time, `{prob['complexity'].get('optimalSpace', 'O(N)')}` space."
-            )
         elif prompt_mode == "debug_bug" or any(k in q_low for k in ("bug", "error", "wrong", "fail", "fix", "issue", "crash", "syntax")):
             if run_res.get("error"):
                 reply_text = (
@@ -3353,6 +3436,8 @@ def diagnose_curated_in_chat(
                     f"All {run_res.get('total', 0)} tests currently pass (`{analysis.get('totalScore')}/100` rubric score). "
                     f"Connect a free Gemini API key via the Gemini Key button above for open-ended line-by-line chat."
                 )
+        elif prompt_mode == "visual_explainer" or any(k in q_low for k in ("visual", "animat", "draw", "diagram", "step-by-step", "step by step", "trace", "storyboard", "explain", "walkthrough", "how", "optimal", "solution", "idea", "intuition", "approach")):
+            reply_text = _build_visual_ascii_explanation(prob, exec_frames)
         elif run_res.get("allPassed"):
             reply_text = (
                 f"All {run_res.get('total', 0)} test cases pass for {prob['title']} (`{analysis.get('totalScore')}/100` rubric score).\n"
@@ -3377,6 +3462,7 @@ def diagnose_curated_in_chat(
             "text": reply_text,
             "highlightLine": highlight_line,
             "modelUsed": used_model_label,
+            "visualWidget": visual_widget,
         })
         prog["chatHistory"][problem_id] = hist[-20:]
         save_progress(prog)
@@ -3386,6 +3472,7 @@ def diagnose_curated_in_chat(
         "reply": reply_text,
         "modelUsed": used_model_label,
         "highlightLine": highlight_line,
+        "visualWidget": visual_widget,
         "executionFrames": exec_frames,
         "runResult": run_res,
         "analysis": analysis,
@@ -3919,13 +4006,7 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
             day = _parse_day_field(body.get("day", 1))
             if lang in _ALLOWED_LANGUAGES:
                 _save_code_draft(f"{day}:{lang}", code, current_day=day)
-            mode_prefix = {
-                "hints_only": "[Hints Only - Do not reveal full code, give Socratic nudges] ",
-                "debug_bug": "[Debug Bug] ",
-                "explain_complexity": "[Explain Complexity] ",
-                "visualize_trace": "[Visualise Trace] ",
-            }.get(prompt_mode, "")
-            res = diagnose_in_chat(day, lang, code, mode_prefix + msg, model_mode=model_mode)
+            res = diagnose_in_chat(day, lang, code, msg, model_mode=model_mode, prompt_mode=prompt_mode)
             self._send_json(res)
             return
 
@@ -4011,11 +4092,15 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
                     if c_key and u_txt and a_txt:
                         c_hist = list(prog.setdefault("chatHistory", {}).get(c_key) or [])
                         c_hist.append({"role": "user", "text": u_txt, "model": _safe_str(ct.get("model", "flash"), 32)})
-                        c_hist.append({
+                        assistant_entry: dict[str, Any] = {
                             "role": "assistant",
                             "text": a_txt,
                             "modelUsed": _safe_str(ct.get("modelUsed", "Gemini Live"), 64),
-                        })
+                        }
+                        raw_vw = ct.get("visualWidget")
+                        if isinstance(raw_vw, dict) and len(json.dumps(raw_vw, ensure_ascii=False)) <= 12000:
+                            assistant_entry["visualWidget"] = raw_vw
+                        c_hist.append(assistant_entry)
                         prog["chatHistory"][c_key] = c_hist[-20:]
                 if body.get("toggleBookmark") and body.get("key"):
                     bms = list(prog.get("bookmarks") or [])

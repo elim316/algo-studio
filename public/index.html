@@ -3776,6 +3776,263 @@
       gap: 6px;
       flex-wrap: wrap;
     }
+
+    /* Visual Learner Storyboard Cards & Unclipped ASCII Diagrams in AI Co-Pilot */
+    .chat-bubble .stdout-pre {
+      max-height: 360px;
+      white-space: pre;
+      line-height: 1.48;
+      font-size: 11.5px;
+      padding: 8px 10px;
+    }
+
+    .visual-storyboard-card {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin-top: 8px;
+      padding: 10px 11px;
+      border-radius: var(--radius-inner);
+      background: var(--surface);
+      border: 1px solid var(--border-col);
+    }
+
+    .vs-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .vs-title {
+      font-size: 12px;
+      font-weight: 650;
+      color: var(--fg);
+    }
+
+    .vs-complexity-pill {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--success) 11%, var(--surface-2));
+      border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border-col));
+      color: var(--success);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .vs-section-label {
+      font-size: 10.5px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--fg-muted);
+      margin-bottom: 4px;
+    }
+
+    .vs-flow-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 9px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--border-col);
+    }
+
+    .vs-array-strip {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      flex-wrap: wrap;
+      font-family: var(--font-mono);
+    }
+
+    .vs-array-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      min-width: 30px;
+    }
+
+    .vs-cell-ptr {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--accent);
+      min-height: 12px;
+      line-height: 12px;
+    }
+
+    .vs-cell-box {
+      width: 100%;
+      padding: 4px 6px;
+      text-align: center;
+      border-radius: 5px;
+      background: var(--surface);
+      border: 1px solid var(--border-col);
+      color: var(--fg);
+      font-size: 11.5px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+    }
+
+    .vs-array-cell.is-active .vs-cell-box {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+      color: var(--accent);
+    }
+
+    .vs-cell-idx {
+      font-size: 9.5px;
+      color: var(--fg-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .vs-ll-chain {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+    }
+
+    .vs-ll-node {
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--surface);
+      border: 1px solid var(--border-col);
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    .vs-ll-node.is-active {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+      color: var(--accent);
+    }
+
+    .vs-ll-arrow {
+      color: var(--fg-muted);
+      font-size: 11px;
+    }
+
+    .vs-io-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--fg-secondary);
+    }
+
+    .vs-io-chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border-col);
+      color: var(--fg);
+      word-break: break-word;
+    }
+
+    .vs-contrast-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .vs-contrast-box {
+      padding: 6px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+
+    .vs-contrast-box.trap {
+      background: var(--danger-bg);
+      border-left: 2.5px solid var(--danger);
+      color: var(--fg);
+    }
+
+    .vs-contrast-box.pivot {
+      background: var(--success-bg);
+      border-left: 2.5px solid var(--success);
+      color: var(--fg);
+    }
+
+    .vs-contrast-tag {
+      font-weight: 650;
+      margin-right: 4px;
+    }
+
+    .vs-contrast-box.trap .vs-contrast-tag { color: var(--danger); }
+    .vs-contrast-box.pivot .vs-contrast-tag { color: var(--success); }
+
+    .vs-stepper-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 9px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--border-col);
+    }
+
+    .vs-stepper-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .vs-step-counter {
+      font-size: 11px;
+      font-weight: 650;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .vs-step-focus {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-col));
+      border-radius: 4px;
+      padding: 3px 7px;
+      word-break: break-word;
+    }
+
+    .vs-var-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .vs-var-chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border-col);
+      color: var(--fg);
+      word-break: break-word;
+    }
+
+    .vs-step-note {
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--fg-secondary);
+    }
   </style>
 </head>
 <body>
@@ -4238,14 +4495,15 @@
             <div class="copilot-composer-footer">
               <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
                 <button type="button" class="icon-btn" id="copilot-quick-vis-btn" title="Animate my current code step-by-step">+</button>
-                <select id="copilot-prompt-mode-select" class="model-select-pill" aria-label="Select AI prompt mode" title="Choose how the Co-Pilot and Copy for AI tutor you">
-                  <option value="full_tutor" selected>Full Tutor</option>
+                <select id="copilot-prompt-mode-select" class="model-select-pill" aria-label="Select AI prompt mode" title="Choose how AI Help and Copy for AI tutor you">
+                  <option value="visual_explainer" selected>Visual Explainer</option>
+                  <option value="full_tutor">Full Tutor</option>
                   <option value="hints_only">Hints Only</option>
                   <option value="debug_bug">Debug Bug</option>
                   <option value="explain_complexity">Big-O Only</option>
                   <option value="visualize_trace">Trace Table</option>
                 </select>
-                <button type="button" class="icon-btn" id="copy-for-ai-btn" style="font-size:11px; padding:3px 7px;" title="Copy problem, code, and all test diffs with tutor instructions for any LLM">Copy for AI</button>
+                <button type="button" class="icon-btn" id="copy-for-ai-btn" style="font-size:11px; padding:3px 7px;" title="Copy a pre-formatted visual-learner prompt with Example 1, numbered code, and test diffs for any AI">Copy for AI</button>
               </div>
               <div style="display:flex; align-items:center; gap:6px;">
                 <select id="copilot-model-select" class="model-select-pill" aria-label="Select AI Co-Pilot mode">
@@ -7129,12 +7387,249 @@
     /* ============================================================================
        RIGHT-HAND AI CO-PILOT SIDEBAR & EMBEDDED VISUAL WIDGET RENDERER
        ============================================================================ */
+    function parseVisualInputTokens(inputStr) {
+      const raw = String(inputStr || '').trim();
+      if (!raw) return { items: [], label: '', extras: '' };
+      const arrMatch = raw.match(/(?:([A-Za-z_]\w*)\s*=\s*)?\[([^\[\]]{1,140})\]/);
+      if (!arrMatch) return { items: [], label: '', extras: raw };
+      const label = arrMatch[1] || 'input';
+      const inner = arrMatch[2].trim();
+      const items = inner
+        ? inner.split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean).slice(0, 10)
+        : [];
+      const extras = raw.replace(arrMatch[0], '').replace(/^[\s,]+|[\s,]+$/g, '').trim();
+      return { items, label, extras };
+    }
+
+    function extractActivePointers(focusText, stateText, arrLen) {
+      const combined = `${focusText || ''} ${stateText || ''}`;
+      const byIdx = new Map();
+      if (!arrLen) return byIdx;
+      const re = /\b(i|j|left|right|lo|hi|mid|slow|fast|idx|start|end|l|r|curr|cur)\s*=\s*(-?\d+)\b/g;
+      let m;
+      while ((m = re.exec(combined)) !== null) {
+        const name = m[1];
+        const idx = Number(m[2]);
+        if (Number.isInteger(idx) && idx >= 0 && idx < arrLen) {
+          const prev = byIdx.get(idx) || [];
+          if (!prev.includes(name) && prev.length < 2) prev.push(name);
+          byIdx.set(idx, prev);
+        }
+      }
+      return byIdx;
+    }
+
+    function buildClientVisualStoryboardWidget(p) {
+      if (!p) return null;
+      const mm = p.mentalModel || {};
+      const cx = p.complexity || {};
+      const ex0 = Array.isArray(p.examples) && p.examples.length ? p.examples[0] : null;
+      const rawSteps = Array.isArray(p.traceSteps) ? p.traceSteps : [];
+      return {
+        type: 'visual_storyboard',
+        title: `Visual walkthrough: ${p.title || 'Problem'}`,
+        problemId: String(p.id || p.day || ''),
+        isCurated: Boolean(p.isCurated),
+        isSql: Boolean(p.isSql),
+        tags: (p.tags || []).slice(0, 4),
+        bruteTime: String(cx.bruteTime || 'O(N^2)'),
+        optimalTime: String(cx.optimalTime || 'O(N)'),
+        optimalSpace: String(cx.optimalSpace || 'O(N)'),
+        trap: String(mm.instinctiveTrap || '').slice(0, 360),
+        pivot: String(mm.optimalPivot || '').slice(0, 360),
+        trigger: String(mm.triggerSignal || '').slice(0, 260),
+        example: ex0
+          ? {
+              input: String(ex0.input || '').slice(0, 180),
+              output: String(ex0.output || '').slice(0, 120),
+              explanation: String(ex0.explanation || '').slice(0, 240),
+            }
+          : null,
+        traceSteps: rawSteps.slice(0, 10).map((s, idx) => ({
+          step: Number(s.step || idx + 1),
+          focus: String(s.focus || '').slice(0, 140),
+          stateVars: String(s.stateVars || '').slice(0, 220),
+          note: String(s.note || '').slice(0, 280),
+        })),
+        hasUserFrames: Boolean(state.userFrames.length),
+      };
+    }
+
+    function framesToStoryboardSteps(frames) {
+      if (!Array.isArray(frames) || !frames.length) return [];
+      return frames.slice(0, 14).map((f, idx) => {
+        const linePart = f.line ? `Line ${f.line}: ${String(f.source || '').trim()}` : `Step ${idx + 1}`;
+        const varParts = [];
+        const locs = f.locals || {};
+        for (const [k, v] of Object.entries(locs)) {
+          if (varParts.length >= 6) break;
+          const valStr = typeof v === 'string' ? v : JSON.stringify(v);
+          varParts.push(`${k} = ${String(valStr ?? '').slice(0, 44)}`);
+        }
+        if (f.returnValue !== undefined && f.returnValue !== null) {
+          varParts.push(`return = ${String(typeof f.returnValue === 'string' ? f.returnValue : JSON.stringify(f.returnValue)).slice(0, 44)}`);
+        }
+        return {
+          step: idx + 1,
+          focus: linePart.slice(0, 140),
+          stateVars: varParts.join(' | ') || 'Initial frame',
+          note: f.error ? `Error: ${f.error}` : (f.event === 'return' ? 'Function returns this result.' : 'Variables updated after executing this line.'),
+        };
+      });
+    }
+
     function buildVisualWidgetElement(widget) {
       if (!widget || !widget.type) return null;
       const card = document.createElement('div');
-      card.className = 'copilot-visual-card';
+      card.className = widget.type === 'visual_storyboard' ? 'visual-storyboard-card' : 'copilot-visual-card';
 
-      if (widget.type === 'complexity_contrast') {
+      if (widget.type === 'visual_storyboard') {
+        const tags = Array.isArray(widget.tags) ? widget.tags : [];
+        const isLinkedList = tags.some((t) => /linked\s*list/i.test(String(t)));
+        const ex = widget.example || null;
+        const parsedInput = parseVisualInputTokens(ex?.input || '');
+        let steps = Array.isArray(widget.traceSteps) && widget.traceSteps.length ? widget.traceSteps.slice() : [];
+        if (!steps.length && state.optimalFrames.length && (!widget.problemId || widget.problemId === String(currentProblem()?.id || currentProblem()?.day || ''))) {
+          steps = framesToStoryboardSteps(state.optimalFrames);
+        }
+        let stepIdx = 0;
+
+        const head = document.createElement('div');
+        head.className = 'vs-head';
+        head.innerHTML =
+          `<span class="vs-title">${escapeHtml(widget.title || 'Visual walkthrough')}</span>` +
+          `<span class="vs-complexity-pill">${escapeHtml(widget.bruteTime || 'O(N^2)')} -> ${escapeHtml(widget.optimalTime || 'O(N)')}</span>`;
+        card.appendChild(head);
+
+        const flowBox = document.createElement('div');
+        flowBox.className = 'vs-flow-box';
+        const structureHost = document.createElement('div');
+        const ioMeta = document.createElement('div');
+        ioMeta.className = 'vs-io-row';
+        const patternLabel = tags.length ? tags.slice(0, 2).join(' / ') : 'Optimal invariant';
+        const ioParts = [];
+        if (parsedInput.extras) ioParts.push(`<span class="vs-io-chip">${escapeHtml(parsedInput.extras)}</span>`);
+        ioParts.push(`<span>Pattern:</span><span class="vs-io-chip">${escapeHtml(patternLabel)}</span>`);
+        if (ex?.output) ioParts.push(`<span>Output:</span><span class="vs-io-chip">${escapeHtml(ex.output)}</span>`);
+        ioMeta.innerHTML = ioParts.join(' ');
+        flowBox.appendChild(structureHost);
+        flowBox.appendChild(ioMeta);
+        card.appendChild(flowBox);
+
+        function renderStructureDiagram(activePtrs) {
+          if (parsedInput.items.length > 0 && isLinkedList) {
+            const nodesHtml = parsedInput.items
+              .map((val, idx) => {
+                const ptrs = activePtrs.get(idx);
+                const ptrTag = ptrs && ptrs.length ? ` (${ptrs.join(',')})` : '';
+                return `<span class="vs-ll-node${ptrs ? ' is-active' : ''}">${escapeHtml(val)}${escapeHtml(ptrTag)}</span><span class="vs-ll-arrow">-></span>`;
+              })
+              .join('') + `<span class="vs-ll-arrow">None</span>`;
+            structureHost.innerHTML =
+              `<div class="vs-section-label">${escapeHtml(parsedInput.label || 'Linked list')} (Example 1)</div>` +
+              `<div class="vs-ll-chain">${nodesHtml}</div>`;
+          } else if (parsedInput.items.length > 0) {
+            const cellsHtml = parsedInput.items
+              .map((val, idx) => {
+                const ptrs = activePtrs.get(idx);
+                const ptrText = ptrs && ptrs.length ? ptrs.join(',') : '';
+                return (
+                  `<div class="vs-array-cell${ptrs ? ' is-active' : ''}">` +
+                  `<span class="vs-cell-ptr">${escapeHtml(ptrText)}</span>` +
+                  `<div class="vs-cell-box">${escapeHtml(val)}</div>` +
+                  `<span class="vs-cell-idx">${idx}</span>` +
+                  `</div>`
+                );
+              })
+              .join('');
+            structureHost.innerHTML =
+              `<div class="vs-section-label">${escapeHtml(parsedInput.label || 'Input array')} (Example 1)</div>` +
+              `<div class="vs-array-strip">${cellsHtml}</div>`;
+          } else if (ex?.input) {
+            structureHost.innerHTML =
+              `<div class="vs-section-label">Example 1 input</div>` +
+              `<div class="vs-io-chip">${escapeHtml(ex.input)}</div>`;
+          } else {
+            structureHost.innerHTML = `<div class="vs-section-label">Visual mental model</div>`;
+          }
+        }
+
+        if (widget.trap || widget.pivot) {
+          const contrast = document.createElement('div');
+          contrast.className = 'vs-contrast-stack';
+          if (widget.trap) {
+            contrast.innerHTML +=
+              `<div class="vs-contrast-box trap"><span class="vs-contrast-tag">Naive trap (${escapeHtml(widget.bruteTime || 'O(N^2)')}):</span>${formatRichText(widget.trap)}</div>`;
+          }
+          if (widget.pivot) {
+            contrast.innerHTML +=
+              `<div class="vs-contrast-box pivot"><span class="vs-contrast-tag">Optimal visual pivot (${escapeHtml(widget.optimalTime || 'O(N)')}):</span>${formatRichText(widget.pivot)}</div>`;
+          }
+          card.appendChild(contrast);
+        }
+
+        const stepperBox = document.createElement('div');
+        stepperBox.className = 'vs-stepper-box';
+        card.appendChild(stepperBox);
+
+        function renderStepper() {
+          if (!steps.length) {
+            renderStructureDiagram(new Map());
+            stepperBox.innerHTML =
+              `<div class="vs-stepper-bar">` +
+              `<span class="vs-step-counter">Interactive step frames</span>` +
+              `${widget.isSql ? '' : '<button type="button" class="btn-subtle-accent vs-load-frames-btn" style="padding:3px 8px; font-size:11px;">Load live trace steps</button>'}` +
+              `</div>` +
+              `<div class="vs-step-note">${widget.isSql ? 'Run your SQL query to compare Expected vs Your Query Output tables side by side.' : 'Click Load live trace steps to trace the optimal Python solution on Example 1 right inside this card.'}</div>`;
+            stepperBox.querySelector('.vs-load-frames-btn')?.addEventListener('click', async (ev) => {
+              const btn = ev.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Tracing...';
+              const p = currentProblem();
+              if (p) {
+                await loadOptimalTraceFrames(p.isCurated ? p.id : p.day, state.activeVisTcIdx || 0);
+                steps = framesToStoryboardSteps(state.optimalFrames);
+                stepIdx = 0;
+                renderStepper();
+              }
+            });
+            return;
+          }
+          const cur = steps[Math.max(0, Math.min(steps.length - 1, stepIdx))];
+          const activePtrs = extractActivePointers(cur.focus, cur.stateVars, parsedInput.items.length);
+          renderStructureDiagram(activePtrs);
+          const varChips = String(cur.stateVars || '')
+            .split('|')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((s) => `<span class="vs-var-chip">${escapeHtml(s)}</span>`)
+            .join('');
+          stepperBox.innerHTML =
+            `<div class="vs-stepper-bar">` +
+            `<span class="vs-step-counter">Step ${stepIdx + 1} / ${steps.length}</span>` +
+            `<div style="display:flex; gap:4px;">` +
+            `<button type="button" class="vs-prev-btn" style="padding:2px 7px; font-size:11px;" ${stepIdx <= 0 ? 'disabled' : ''}>Prev</button>` +
+            `<button type="button" class="vs-next-btn" style="padding:2px 7px; font-size:11px;" ${stepIdx >= steps.length - 1 ? 'disabled' : ''}>Next</button>` +
+            `</div>` +
+            `</div>` +
+            `<div class="vs-step-focus">${escapeHtml(cur.focus || '')}</div>` +
+            (varChips ? `<div class="vs-var-chips">${varChips}</div>` : '') +
+            `<div class="vs-step-note">${formatRichText(cur.note || '')}</div>`;
+          stepperBox.querySelector('.vs-prev-btn')?.addEventListener('click', () => {
+            if (stepIdx > 0) {
+              stepIdx--;
+              renderStepper();
+            }
+          });
+          stepperBox.querySelector('.vs-next-btn')?.addEventListener('click', () => {
+            if (stepIdx < steps.length - 1) {
+              stepIdx++;
+              renderStepper();
+            }
+          });
+        }
+        renderStepper();
+      } else if (widget.type === 'complexity_contrast') {
         const userDepth = Number(widget.loopDepth || 1);
         const isNested = userDepth >= 2;
         card.innerHTML = `
@@ -7164,13 +7659,15 @@
           </div>
         `;
       } else if (widget.type === 'invariant_diagram') {
+        const trapCopy = widget.trap || 'Re-scanning remaining elements with an inner loop.';
+        const pivotCopy = widget.pivot || 'Maintain the core invariant in auxiliary memory to avoid redundant scans.';
         card.innerHTML = `
           <div style="font-size:11.5px; font-weight:650; color:var(--fg);">${escapeHtml(widget.title || 'Mental Model Shift')}</div>
-          <div style="padding:6px 8px; border-radius:6px; background:var(--danger-bg); color:var(--danger); font-size:11.5px;">
-            Trap (${escapeHtml(widget.bruteTime || 'O(N^2)')}): Re-scanning remaining elements with an inner loop.
+          <div class="vs-contrast-box trap">
+            <span class="vs-contrast-tag">Trap (${escapeHtml(widget.bruteTime || 'O(N^2)')}):</span>${formatRichText(trapCopy)}
           </div>
-          <div style="padding:6px 8px; border-radius:6px; background:var(--success-bg); color:var(--success); font-size:11.5px;">
-            Optimal Pivot (${escapeHtml(widget.optimalTime || 'O(N)')}): Store seen elements in O(1) memory and query complement in a single pass.
+          <div class="vs-contrast-box pivot">
+            <span class="vs-contrast-tag">Optimal Pivot (${escapeHtml(widget.optimalTime || 'O(N)')}):</span>${formatRichText(pivotCopy)}
           </div>
         `;
       } else {
@@ -7185,47 +7682,69 @@
       btnRow.style.gap = '6px';
       btnRow.style.flexWrap = 'wrap';
 
-      const playUserBtn = document.createElement('button');
-      playUserBtn.type = 'button';
-      playUserBtn.className = 'btn-subtle-accent';
-      playUserBtn.style.fontSize = '11px';
-      playUserBtn.style.padding = '4px 8px';
-      playUserBtn.textContent = state.userFrames.length ? 'Animate My Code' : 'Animate Optimal Invariant';
-      playUserBtn.addEventListener('click', async () => {
-        const p = currentProblem();
-        if (state.userFrames.length) {
-          state.visMode = 'user';
-          state.visFrameIdx = 0;
-          renderVisualiserFrame();
-          toggleVisualiserPlayback();
-        } else {
-          state.visMode = 'optimal';
-          state.visFrameIdx = 0;
-          await loadOptimalTraceFrames(p.day, state.activeVisTcIdx || 0);
-          renderVisualiserFrame();
-          toggleVisualiserPlayback();
-        }
-        document.getElementById('live-visualiser-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      });
-      btnRow.appendChild(playUserBtn);
-
-      if (state.userFrames.length) {
-        const playOptBtn = document.createElement('button');
-        playOptBtn.type = 'button';
-        playOptBtn.style.fontSize = '11px';
-        playOptBtn.style.padding = '4px 8px';
-        playOptBtn.textContent = 'Animate Optimal O(N)';
-        playOptBtn.addEventListener('click', async () => {
+      if (!widget.isSql) {
+        const playUserBtn = document.createElement('button');
+        playUserBtn.type = 'button';
+        playUserBtn.className = 'btn-subtle-accent';
+        playUserBtn.style.fontSize = '11px';
+        playUserBtn.style.padding = '4px 8px';
+        playUserBtn.textContent = state.userFrames.length ? 'Animate My Code' : 'Animate in Tutor';
+        playUserBtn.addEventListener('click', async () => {
           const p = currentProblem();
-          state.visMode = 'optimal';
-          state.visFrameIdx = 0;
-          await loadOptimalTraceFrames(p.day, state.activeVisTcIdx || 0);
-          renderVisualiserFrame();
-          toggleVisualiserPlayback();
+          if (state.userFrames.length) {
+            state.visMode = 'user';
+            state.visFrameIdx = 0;
+            renderVisualiserFrame();
+            toggleVisualiserPlayback();
+          } else if (p) {
+            state.visMode = 'optimal';
+            state.visFrameIdx = 0;
+            await loadOptimalTraceFrames(p.isCurated ? p.id : p.day, state.activeVisTcIdx || 0);
+            renderVisualiserFrame();
+            toggleVisualiserPlayback();
+          }
           document.getElementById('live-visualiser-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
-        btnRow.appendChild(playOptBtn);
+        btnRow.appendChild(playUserBtn);
+
+        if (state.userFrames.length) {
+          const playOptBtn = document.createElement('button');
+          playOptBtn.type = 'button';
+          playOptBtn.style.fontSize = '11px';
+          playOptBtn.style.padding = '4px 8px';
+          playOptBtn.textContent = 'Animate Optimal';
+          playOptBtn.addEventListener('click', async () => {
+            const p = currentProblem();
+            if (!p) return;
+            state.visMode = 'optimal';
+            state.visFrameIdx = 0;
+            await loadOptimalTraceFrames(p.isCurated ? p.id : p.day, state.activeVisTcIdx || 0);
+            renderVisualiserFrame();
+            toggleVisualiserPlayback();
+            document.getElementById('live-visualiser-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          });
+          btnRow.appendChild(playOptBtn);
+        }
       }
+
+      const copyVisBtn = document.createElement('button');
+      copyVisBtn.type = 'button';
+      copyVisBtn.style.fontSize = '11px';
+      copyVisBtn.style.padding = '4px 8px';
+      copyVisBtn.textContent = 'Copy Visual Prompt';
+      copyVisBtn.title = 'Copy a pre-formatted visual-learner prompt for Gemini on web or any external AI';
+      copyVisBtn.addEventListener('click', () => {
+        const text = window.StudioV2?.buildCopyForAiPrompt ? window.StudioV2.buildCopyForAiPrompt('visual_explainer') : '';
+        if (!text) return;
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).catch(() => copyTextFallback(text));
+        } else {
+          copyTextFallback(text);
+        }
+        copyVisBtn.textContent = 'Copied ✓';
+        setTimeout(() => { copyVisBtn.textContent = 'Copy Visual Prompt'; }, 1500);
+      });
+      btnRow.appendChild(copyVisBtn);
 
       card.appendChild(btnRow);
       return card;
@@ -7291,8 +7810,8 @@
       const pillsStack = document.createElement('div');
       pillsStack.className = 'copilot-pills-stack';
       const suggestions = [
+        { label: `Explain ${p.title} visually step-by-step`, prompt: `Explain ${p.title} visually step-by-step with diagrams` },
         { label: `Propose a hint for the ${p.title} solution`, prompt: `Propose a hint for the ${p.title} solution` },
-        { label: `Explain ${p.title} ${primaryTag.toLowerCase()} approach`, prompt: `Explain the optimal ${primaryTag} approach for ${p.title}` },
         { label: `Contrast ${primaryTag.toLowerCase()} vs brute-force complexity`, prompt: `Contrast the optimal complexity vs brute-force complexity on my current code` },
         { label: `Visualise my code step-by-step with animations`, prompt: `Visualise my current code step-by-step with animations` },
       ];
@@ -7574,10 +8093,12 @@
       const modelId = modelMode === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
       const numberedCode = String(code || '').split('\n').map((ln, idx) => `${idx + 1}: ${ln}`).join('\n');
       const modeRule = {
+        visual_explainer:
+          'MODE: VISUAL EXPLAINER (for a visual learner). Start with a clean monospace ASCII diagram inside a ```text block showing the input layout (indexed array boxes, pointer arrows ^, linked-list -> chains, tree branches, or hash-map buckets). Follow with a compact 3 to 5 step visual state progression on Example 1 showing pointers and memory updating at each step, then briefly tie it to the user\'s numbered code.',
         hints_only: 'STRICT MODE: HINTS ONLY. Do not reveal the full code solution. Give Socratic nudges and invariant cues only.',
-        debug_bug: 'MODE: DEBUG BUG. Pinpoint the exact line, off-by-one, or edge-case bug and explain how to fix it.',
-        explain_complexity: 'MODE: EXPLAIN COMPLEXITY. Derive exact Time and Space Big-O and contrast with the brute-force approach.',
-        visualize_trace: 'MODE: VISUALISE TRACE. Walk through a compact step-by-step state table on Example 1 showing variable transitions.',
+        debug_bug: 'MODE: DEBUG BUG. Pinpoint the exact line, off-by-one, or edge-case bug and explain how to fix it with a visual variable snapshot.',
+        explain_complexity: 'MODE: EXPLAIN COMPLEXITY. Derive exact Time and Space Big-O and contrast visually with the brute-force approach.',
+        visualize_trace: 'MODE: VISUALISE TRACE. Walk through a compact step-by-step visual state table on Example 1 showing variable and pointer transitions.',
         full_tutor: 'MODE: FULL TUTOR. Answer the user directly and concisely with interview-grade clarity.',
       }[promptMode] || '';
 
@@ -7598,16 +8119,19 @@
 
       const mm = p.mentalModel || {};
       const cx = p.complexity || {};
+      const ex0 = Array.isArray(p.examples) && p.examples.length ? p.examples[0] : null;
+      const exSummary = ex0 ? `Input: ${ex0.input || ''} | Output: ${ex0.output || ''}` : '';
       const sysPrompt =
         'You are a sharp, supportive coding interview mentor inside Algo Studio coaching for SWE and FDE interviews.\n' +
         'Rules:\n' +
         '- Answer the user\'s exact question first in natural British English (visualise, optimise, analyse, behaviour, colour).\n' +
         '- Never use bold markdown (**), em dashes, en dashes, or middle dots. Wrap code tokens and identifiers in single backticks `...`.\n' +
-        '- Keep replies concise (2 to 4 short paragraphs or crisp bullet points) referencing the user\'s actual code lines.\n' +
+        '- Keep replies concise and scannable, referencing the user\'s actual code lines.\n' +
         (modeRule ? `- ${modeRule}\n` : '') +
         `\nActive Problem: ${p.leetcodeId || ''} - ${p.title || ''}\n` +
         `Tags: ${(p.tags || []).join(', ')}\n` +
         `Statement Summary: ${String(p.statement || '').slice(0, 700)}\n` +
+        (exSummary ? `Example 1: ${exSummary}\n` : '') +
         `Optimal Mental Pivot: ${mm.optimalPivot || ''}\n` +
         `Target Complexity: ${cx.optimalTime || ''} time, ${cx.optimalSpace || ''} space\n` +
         `Latest Test Status: ${runSummary}\n\n` +
@@ -7638,7 +8162,7 @@
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: sysPrompt }] },
               contents,
-              generationConfig: { temperature: 0.45, maxOutputTokens: 700 },
+              generationConfig: { temperature: 0.45, maxOutputTokens: 950 },
             }),
           }
         );
@@ -7654,6 +8178,11 @@
         }
         const reply = sanitiseLiveMentorReply(rawReply);
         const modelLabel = modelMode === 'pro' ? 'Gemini 2.5 Pro (Live)' : 'Gemini 2.5 Flash (Live)';
+        const wantsVisualCard =
+          promptMode === 'visual_explainer' ||
+          promptMode === 'visualize_trace' ||
+          /(visual|diagram|draw|step|explain|walkthrough|trace|animat)/i.test(userMessage);
+        const visualWidget = wantsVisualCard ? buildClientVisualStoryboardWidget(p) : null;
         const saveRes = await apiPost('/api/progress', {
           appendChatTurn: {
             key: probKey,
@@ -7661,13 +8190,18 @@
             assistantText: reply,
             model: modelMode,
             modelUsed: modelLabel,
+            visualWidget,
           },
         });
         if (saveRes && saveRes.ok && saveRes.progress) {
           state.progress = saveRes.progress;
         } else {
           if (!state.progress.chatHistory) state.progress.chatHistory = {};
-          const nextH = [...existingHist, { role: 'user', text: userMessage, model: modelMode }, { role: 'assistant', text: reply, modelUsed: modelLabel }].slice(-20);
+          const nextH = [
+            ...existingHist,
+            { role: 'user', text: userMessage, model: modelMode },
+            { role: 'assistant', text: reply, modelUsed: modelLabel, ...(visualWidget ? { visualWidget } : {}) },
+          ].slice(-20);
           state.progress.chatHistory[probKey] = nextH;
         }
         return {
@@ -7699,7 +8233,7 @@
       sendBtn.textContent = '...';
 
       const code = document.getElementById('code-editor').value;
-      const promptMode = document.getElementById('copilot-prompt-mode-select')?.value || 'full_tutor';
+      const promptMode = document.getElementById('copilot-prompt-mode-select')?.value || 'visual_explainer';
       state.progress.drafts[`${activeProblemKey(p)}:${state.activeLang}`] = code;
 
       // Immediately render optimistic user message + thinking status bubble so UI never looks frozen
@@ -7710,17 +8244,17 @@
       const hasLiveKey = isGeminiConfigured();
       if (streamEl) {
         const optUser = document.createElement('div');
-        optUser.className = 'chat-msg chat-user';
+        optUser.className = 'chat-bubble user';
         optUser.setAttribute('data-optimistic-chat', '1');
         optUser.textContent = message;
         streamEl.appendChild(optUser);
 
         pendingEl = document.createElement('div');
-        pendingEl.className = 'chat-msg chat-assistant';
+        pendingEl.className = 'chat-bubble assistant';
         pendingEl.setAttribute('data-optimistic-chat', '1');
         const thinkLabel = hasLiveKey && navigator.onLine !== false
           ? (modelMode === 'pro' ? 'Asking Gemini 2.5 Pro...' : 'Asking Gemini 2.5 Flash...')
-          : 'Analysing your code with Offline AST Mentor (first run loads Python engine)...';
+          : 'Building visual explanation & checking your code (first offline run loads Python)...';
         pendingEl.innerHTML = `<div class="muted" style="font-size:11.5px;">${escapeHtml(thinkLabel)}</div>`;
         streamEl.appendChild(pendingEl);
         streamEl.scrollTop = streamEl.scrollHeight;
@@ -7733,7 +8267,7 @@
           const liveRes = await callDirectGeminiMentor(p, code, state.activeLang, message, modelMode, promptMode);
           if (liveRes.attempted && liveRes.ok) {
             renderInlineChatHistory();
-            if (message.toLowerCase().includes('visual') || message.toLowerCase().includes('animat')) {
+            if (message.toLowerCase().includes('animat')) {
               state.visFrameIdx = 0;
               toggleVisualiserPlayback();
             }
@@ -7781,7 +8315,7 @@
           if (res.highlightLine) {
             setErrorHighlight(res.highlightLine, `Line ${res.highlightLine}: Flagged by AI Co-Pilot`);
           }
-          if (message.toLowerCase().includes('visual') || message.toLowerCase().includes('animat')) {
+          if (message.toLowerCase().includes('animat')) {
             state.visFrameIdx = 0;
             toggleVisualiserPlayback();
           }

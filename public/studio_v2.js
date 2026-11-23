@@ -563,26 +563,48 @@
     } catch (_) {}
   }
 
-  function buildCopyForAiPrompt() {
+  function buildCopyForAiPrompt(modeOverride = '') {
     const bridge = B();
     const p = bridge.currentProblem();
     const code = document.getElementById('code-editor')?.value || '';
-    const mode = document.getElementById('copilot-prompt-mode-select')?.value || 'full_tutor';
+    const mode = modeOverride || document.getElementById('copilot-prompt-mode-select')?.value || 'visual_explainer';
     const modeInstructions = {
-      full_tutor: 'Act as a senior Google SWE / FDE interview coach. Review my code, identify correctness or edge-case bugs, explain the optimal mental pivot, analyse Big-O time and space complexity, and suggest one follow-up question.',
+      visual_explainer: [
+        'Explain this problem visually for a visual learner using clean monospace diagrams and step-by-step state pictures.',
+        'Format your answer in four short parts:',
+        '1. Visual mental model: draw a crisp ASCII diagram of the input structure (array boxes with indices, pointer arrows ^, linked-list -> chains, tree branches, or hash-map buckets) showing the core invariant before any long prose.',
+        '2. Step-by-step visual storyboard on Example 1: walk through each key iteration showing the updated diagram, pointer positions, and auxiliary memory side by side, with one plain-English line explaining why each move happens.',
+        '3. Naive vs optimal visual contrast: show why the brute-force path repeats work and how the optimal structure cuts Time and Space Big-O.',
+        '4. Code check: inspect my numbered code below, highlight any bug or suboptimal loop by exact line number, and show a visual before/after fix if needed.',
+      ].join('\n'),
+      full_tutor: 'Act as a senior SWE / FDE interview coach. Review my code, identify correctness or edge-case bugs, explain the optimal mental pivot, analyse Big-O time and space complexity, and suggest one follow-up question.',
       hints_only: 'Act as a Socratic interview coach. Do NOT write or reveal the full solution code. Give me 2 progressive nudges about the missing invariant or bug so I can fix it myself.',
-      debug_bug: 'Focus strictly on debugging why my current code fails the test cases below. Pinpoint the offending line, walk through the failing input step by step, and show the minimal patch.',
-      explain_complexity: 'Analyse the exact worst-case and amortised time and space complexity of my code below, and compare it against the optimal bound.',
-      visualize_trace: 'Produce a clean step-by-step state trace table (variables, pointers, and data structures at each iteration) on the first sample input using my current code.',
+      debug_bug: 'Focus strictly on debugging why my current code fails the test cases below. Pinpoint the offending line, walk through the failing input step by step with a visual variable snapshot, and show the minimal patch.',
+      explain_complexity: 'Analyse the exact worst-case and amortised time and space complexity of my code below, and compare it visually against the optimal bound.',
+      visualize_trace: 'Produce a clean step-by-step visual state trace table (variables, pointer positions, and data structures at each iteration) on Example 1 using my current code.',
     };
+
+    const numberedCode = code
+      .trimEnd()
+      .split('\n')
+      .map((ln, idx) => `${idx + 1}: ${ln}`)
+      .join('\n');
 
     const parts = [
       `## Prompt Mode: ${mode.replace(/_/g, ' ').toUpperCase()}`,
-      modeInstructions[mode] || modeInstructions.full_tutor,
+      modeInstructions[mode] || modeInstructions.visual_explainer,
       '',
       `## Problem: ${p.leetcodeId} - ${p.title} (${p.difficulty})`,
       p.statement || '',
     ];
+
+    const ex0 = Array.isArray(p.examples) && p.examples.length ? p.examples[0] : null;
+    if (ex0) {
+      parts.push('', '## Example 1');
+      if (ex0.input) parts.push(`- Input: ${ex0.input}`);
+      if (ex0.output) parts.push(`- Output: ${ex0.output}`);
+      if (ex0.explanation) parts.push(`- Explanation: ${ex0.explanation}`);
+    }
 
     if (p.isSql && p.sqlSchema) {
       parts.push('', '## SQL Schema', '```sql', p.sqlSchema.trim(), '```');
@@ -590,7 +612,7 @@
     if ((p.constraints || []).length) {
       parts.push('', '## Constraints', ...p.constraints.map((c) => `- ${c}`));
     }
-    parts.push('', `## My Current Code (${bridge.state.activeLang})`, '```' + bridge.state.activeLang, code.trim(), '```');
+    parts.push('', `## My Current Code (${bridge.state.activeLang}, line-numbered)`, '```' + bridge.state.activeLang, numberedCode, '```');
 
     const lastRes = bridge.state.lastRunResult;
     if (lastRes) {
@@ -2192,6 +2214,7 @@
     openPressureForActive,
     openFindBar,
     openGoToLinePrompt,
+    buildCopyForAiPrompt,
   };
 
   if (window.AlgoStudioBridge?.state?.initialized) {

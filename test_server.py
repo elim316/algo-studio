@@ -1726,6 +1726,100 @@ console.log('CLIENT_SECURITY_OK');
         ):
             self.assertIn(needle, html)
 
+    def test_v232_visual_explainer_and_storyboard(self) -> None:
+        import http.client
+        import json
+        import threading
+
+        srv = server._ReusableThreadingHTTPServer(("127.0.0.1", 0), server.AlgoStudioHandler)
+        port = srv.server_address[1]
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            def req_json(method: str, path: str, body: dict | None = None):
+                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
+                try:
+                    raw = json.dumps(body).encode("utf-8") if body is not None else None
+                    hdrs = {"Content-Type": "application/json"} if raw is not None else {}
+                    conn.request(method, path, body=raw, headers=hdrs)
+                    resp = conn.getresponse()
+                    return resp.status, json.loads(resp.read().decode("utf-8"))
+                finally:
+                    conn.close()
+
+            # 1. Day 1 visual_explainer returns ASCII diagram + visual_storyboard with real traceSteps
+            st, r1 = req_json("POST", "/api/chat", {
+                "day": 1,
+                "language": "python",
+                "code": "def twoSum(nums, target):\n    pass\n",
+                "message": "Explain Two Sum visually step-by-step",
+                "model": "flash",
+                "promptMode": "visual_explainer",
+            })
+            self.assertEqual(st, 200)
+            self.assertTrue(r1["ok"])
+            self.assertIn("```text", r1["reply"])
+            vw1 = r1.get("visualWidget") or {}
+            self.assertEqual(vw1.get("type"), "visual_storyboard")
+            self.assertTrue(vw1.get("trap"))
+            self.assertTrue(vw1.get("pivot"))
+            self.assertTrue(vw1.get("example"))
+            self.assertGreaterEqual(len(vw1.get("traceSteps") or []), 2)
+
+            # 2. Curated Linked List problem (lc-206) also returns visual_storyboard widget
+            st, r2 = req_json("POST", "/api/chat", {
+                "problemId": "lc-206",
+                "language": "python",
+                "code": "def reverseList(head):\n    return None\n",
+                "message": "Explain Reverse Linked List visually",
+                "model": "flash",
+                "promptMode": "visual_explainer",
+            })
+            self.assertEqual(st, 200)
+            self.assertTrue(r2["ok"])
+            self.assertIn("```text", r2["reply"])
+            vw2 = r2.get("visualWidget") or {}
+            self.assertEqual(vw2.get("type"), "visual_storyboard")
+            self.assertIn("Linked List", vw2.get("tags") or [])
+            self.assertTrue(vw2.get("example"))
+
+            # 3. appendChatTurn persists visualWidget for live Gemini turns
+            st, r_app = req_json("POST", "/api/progress", {
+                "appendChatTurn": {
+                    "key": "1",
+                    "userText": "Draw this visually",
+                    "assistantText": "Visual diagram reply",
+                    "model": "flash",
+                    "modelUsed": "Gemini 2.5 Flash (Live)",
+                    "visualWidget": vw1,
+                }
+            })
+            self.assertEqual(st, 200)
+            last_msg = r_app["progress"]["chatHistory"]["1"][-1]
+            self.assertEqual((last_msg.get("visualWidget") or {}).get("type"), "visual_storyboard")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        html = (server.PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+        v2_js = (server.PUBLIC_DIR / "studio_v2.js").read_text(encoding="utf-8")
+        for needle in (
+            'value="visual_explainer" selected',
+            'function buildClientVisualStoryboardWidget(',
+            'function parseVisualInputTokens(',
+            'function extractActivePointers(',
+            'visual-storyboard-card',
+            'vs-stepper-box',
+            'Copy Visual Prompt',
+        ):
+            self.assertIn(needle, html)
+        for needle in (
+            'visual_explainer:',
+            'buildCopyForAiPrompt',
+            'line-numbered',
+        ):
+            self.assertIn(needle, v2_js)
+
 
 if __name__ == "__main__":
     unittest.main()
