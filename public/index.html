@@ -5325,6 +5325,11 @@
       if (typeof syncPtCodePaneOnEditorInput === 'function') {
         syncPtCodePaneOnEditorInput();
       }
+      if (typeof recordEditorHistorySnapshot === 'function') {
+        const ptTa = document.getElementById('pt-inline-editor');
+        const activeSource = document.activeElement === ptTa ? ptTa : ta;
+        recordEditorHistorySnapshot(activeSource, 'discrete');
+      }
     }
 
     function updateCursorIndicator() {
@@ -7288,7 +7293,11 @@
       const probKey = activeProblemKey(p);
       const draftKey = `${probKey}:${state.activeLang}`;
       const savedDraft = state.progress.drafts?.[draftKey];
-      document.getElementById('code-editor').value = savedDraft || p.starterCode?.[state.activeLang] || '';
+      const loadedCode = savedDraft || p.starterCode?.[state.activeLang] || '';
+      document.getElementById('code-editor').value = loadedCode;
+      if (typeof ensureEditorHistoryForActive === 'function') {
+        ensureEditorHistoryForActive(loadedCode);
+      }
       state.draftDirty = false;
       state.errorLine = null;
       state.errorReason = '';
@@ -10273,9 +10282,25 @@
     document.getElementById('pt-edit-code-btn')?.addEventListener('click', () => setPtEditMode(!ptEditMode));
     document.getElementById('pt-run-trace-btn')?.addEventListener('click', () => runFromPythonTutor());
     document.getElementById('pt-run-status-pill')?.addEventListener('click', () => setPtEditMode(true, ptLastErrorLine));
+    document.getElementById('pt-inline-editor')?.addEventListener('beforeinput', (e) => {
+      const ptTa = e.currentTarget;
+      if (e.inputType === 'historyUndo') {
+        e.preventDefault();
+        editorUndo(ptTa);
+      } else if (e.inputType === 'historyRedo') {
+        e.preventDefault();
+        editorRedo(ptTa);
+      } else {
+        captureEditorCursorBeforeEdit(ptTa);
+      }
+    });
     document.getElementById('pt-inline-editor')?.addEventListener('input', (e) => {
       const mainTa = document.getElementById('code-editor');
-      const val = e.target.value;
+      const ptTa = e.currentTarget;
+      const val = ptTa.value;
+      const itype = String(e.inputType || '');
+      const kind = itype === 'insertText' ? 'type' : (itype.startsWith('deleteContent') ? 'delete' : 'discrete');
+      recordEditorHistorySnapshot(ptTa, kind, e.data || '');
       updatePtInlineGutter();
       if (mainTa) {
         mainTa.value = val;
@@ -10290,6 +10315,19 @@
       const end = ptTa.selectionEnd || 0;
       const val = ptTa.value;
 
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const lk = e.key.toLowerCase();
+        if (lk === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          editorUndo(ptTa);
+          return;
+        }
+        if ((lk === 'z' && e.shiftKey) || (lk === 'y' && !e.shiftKey)) {
+          e.preventDefault();
+          editorRedo(ptTa);
+          return;
+        }
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         runFromPythonTutor();
@@ -10303,6 +10341,7 @@
       }
       if (e.key === 'Tab') {
         e.preventDefault();
+        captureEditorCursorBeforeEdit(ptTa);
         if (!e.shiftKey && start === end) {
           ptTa.value = val.slice(0, start) + '    ' + val.slice(end);
           ptTa.setSelectionRange(start + 4, start + 4);
@@ -10323,6 +10362,7 @@
       }
       if (e.key === 'Enter') {
         e.preventDefault();
+        captureEditorCursorBeforeEdit(ptTa);
         const lineStart = val.lastIndexOf('\n', start - 1) + 1;
         const curBefore = val.slice(lineStart, start);
         const baseIndent = (curBefore.match(/^\s*/) || [''])[0];
@@ -10942,7 +10982,181 @@
       scheduleDraftSave();
     }
 
+    /* ============================================================================
+       DETERMINISTIC PER-DOCUMENT UNDO / REDO STACK (Shared by Main & Python Tutor Editors)
+       ============================================================================ */
+    const EDITOR_HISTORY_MAX = 200;
+    const editorHistoryByKey = new Map();
+    let _isApplyingEditorHistory = false;
+
+    function getActiveEditorHistoryKey() {
+      const p = currentProblem();
+      if (!p) return `default:${state.activeLang || 'python'}`;
+      return `${activeProblemKey(p)}:${state.activeLang || 'python'}`;
+    }
+
+    function getOrCreateEditorHistory(initialValue = null) {
+      const key = getActiveEditorHistoryKey();
+      let h = editorHistoryByKey.get(key);
+      if (!h) {
+        const val = initialValue !== null ? String(initialValue) : String(document.getElementById('code-editor')?.value || '');
+        h = {
+          stack: [{ value: val, selStart: 0, selEnd: 0, ts: Date.now(), kind: 'init' }],
+          index: 0,
+        };
+        editorHistoryByKey.set(key, h);
+      }
+      return h;
+    }
+
+    function ensureEditorHistoryForActive(initialValue) {
+      const key = getActiveEditorHistoryKey();
+      const val = String(initialValue ?? '');
+      const existing = editorHistoryByKey.get(key);
+      if (!existing) {
+        editorHistoryByKey.set(key, {
+          stack: [{ value: val, selStart: 0, selEnd: 0, ts: Date.now(), kind: 'init' }],
+          index: 0,
+        });
+        return;
+      }
+      const cur = existing.stack[existing.index];
+      if (!cur || cur.value !== val) {
+        existing.stack = existing.stack.slice(0, existing.index + 1);
+        existing.stack.push({ value: val, selStart: 0, selEnd: 0, ts: Date.now(), kind: 'init' });
+        if (existing.stack.length > EDITOR_HISTORY_MAX) {
+          existing.stack.shift();
+        }
+        existing.index = existing.stack.length - 1;
+      }
+    }
+
+    function captureEditorCursorBeforeEdit(ta) {
+      if (_isApplyingEditorHistory || !ta) return;
+      const h = getOrCreateEditorHistory(ta.value);
+      const cur = h.stack[h.index];
+      if (cur && cur.value === ta.value) {
+        cur.selStart = ta.selectionStart || 0;
+        cur.selEnd = ta.selectionEnd || 0;
+      }
+    }
+
+    function recordEditorHistorySnapshot(sourceTa = null, kind = 'discrete', inputData = '') {
+      if (_isApplyingEditorHistory) return;
+      const mainTa = document.getElementById('code-editor');
+      const activeTa = sourceTa || mainTa;
+      if (!mainTa || !activeTa) return;
+      const val = activeTa.value;
+      const h = getOrCreateEditorHistory(val);
+      const cur = h.stack[h.index];
+      if (cur && cur.value === val) return;
+
+      const now = Date.now();
+      const selStart = activeTa.selectionStart || 0;
+      const selEnd = activeTa.selectionEnd || 0;
+
+      const isAtTip = h.index === h.stack.length - 1;
+      const isBurstType =
+        isAtTip &&
+        cur &&
+        kind === 'type' &&
+        cur.kind === 'type' &&
+        now - cur.ts < 550 &&
+        val.length - cur.value.length === 1 &&
+        !/[\s\n]/.test(String(inputData || ''));
+      const isBurstDelete =
+        isAtTip &&
+        cur &&
+        kind === 'delete' &&
+        cur.kind === 'delete' &&
+        now - cur.ts < 550 &&
+        cur.value.length - val.length === 1 &&
+        !cur.value.slice(selStart, selStart + 1).includes('\n');
+
+      if (isBurstType || isBurstDelete) {
+        cur.value = val;
+        cur.selStart = selStart;
+        cur.selEnd = selEnd;
+        cur.ts = now;
+        return;
+      }
+
+      if (h.index < h.stack.length - 1) {
+        h.stack = h.stack.slice(0, h.index + 1);
+      }
+      h.stack.push({ value: val, selStart, selEnd, ts: now, kind });
+      if (h.stack.length > EDITOR_HISTORY_MAX) {
+        h.stack.shift();
+      }
+      h.index = h.stack.length - 1;
+    }
+
+    function applyEditorHistoryEntry(entry, targetTa = null) {
+      const mainTa = document.getElementById('code-editor');
+      const ptTa = document.getElementById('pt-inline-editor');
+      const activeTa = targetTa || (typeof ptEditMode !== 'undefined' && ptEditMode && ptTa ? ptTa : mainTa);
+      if (!mainTa || !entry) return false;
+      _isApplyingEditorHistory = true;
+      try {
+        mainTa.value = entry.value;
+        if (ptTa) {
+          ptTa.value = entry.value;
+          if (typeof updatePtInlineGutter === 'function') updatePtInlineGutter();
+        }
+        const maxPos = entry.value.length;
+        const s = Math.max(0, Math.min(maxPos, Number(entry.selStart || 0)));
+        const e = Math.max(s, Math.min(maxPos, Number(entry.selEnd ?? s)));
+        if (activeTa) {
+          activeTa.focus();
+          activeTa.setSelectionRange(s, e);
+        }
+        closeAutocomplete();
+        state.draftDirty = true;
+        updateEditorRender();
+        scheduleDraftSave();
+        updatePracticeRevertStrip();
+      } finally {
+        _isApplyingEditorHistory = false;
+      }
+      return true;
+    }
+
+    function editorUndo(targetTa = null) {
+      const mainTa = document.getElementById('code-editor');
+      const activeTa = targetTa || mainTa;
+      if (!activeTa) return false;
+      recordEditorHistorySnapshot(activeTa, 'discrete');
+      const h = getOrCreateEditorHistory(activeTa.value);
+      if (h.index <= 0) return false;
+      h.index -= 1;
+      return applyEditorHistoryEntry(h.stack[h.index], activeTa);
+    }
+
+    function editorRedo(targetTa = null) {
+      const mainTa = document.getElementById('code-editor');
+      const activeTa = targetTa || mainTa;
+      if (!activeTa) return false;
+      const h = getOrCreateEditorHistory(activeTa.value);
+      if (h.index >= h.stack.length - 1) return false;
+      h.index += 1;
+      return applyEditorHistoryEntry(h.stack[h.index], activeTa);
+    }
+
     const EDITOR_COMMANDS = [
+      {
+        id: 'editor-undo',
+        label: 'Undo Last Edit',
+        hint: 'Reverts the previous edit in the code editor or Python Tutor editor',
+        keys: ['Ctrl', 'Z'],
+        run: () => editorUndo(),
+      },
+      {
+        id: 'editor-redo',
+        label: 'Redo Edit',
+        hint: 'Reapplies an undone edit (Ctrl+Shift+Z or Ctrl+Y)',
+        keys: ['Ctrl', 'Shift', 'Z'],
+        run: () => editorRedo(),
+      },
       {
         id: 'toggle-comment',
         label: 'Toggle Line / Multi-Line Block Comment',
@@ -11254,7 +11468,22 @@
     /* Smart Editor Events: Syntax Highlighting, Auto-Tabbing, Bracket Closing & Autocomplete */
     const codeEditorEl = document.getElementById('code-editor');
 
-    codeEditorEl.addEventListener('input', () => {
+    codeEditorEl.addEventListener('beforeinput', (e) => {
+      if (e.inputType === 'historyUndo') {
+        e.preventDefault();
+        editorUndo(codeEditorEl);
+      } else if (e.inputType === 'historyRedo') {
+        e.preventDefault();
+        editorRedo(codeEditorEl);
+      } else {
+        captureEditorCursorBeforeEdit(codeEditorEl);
+      }
+    });
+
+    codeEditorEl.addEventListener('input', (e) => {
+      const itype = String(e.inputType || '');
+      const kind = itype === 'insertText' ? 'type' : (itype.startsWith('deleteContent') ? 'delete' : 'discrete');
+      recordEditorHistorySnapshot(codeEditorEl, kind, e.data || '');
       updateEditorRender();
       updateAutocomplete();
       scheduleDraftSave();
@@ -11297,9 +11526,25 @@
       const end = ta.selectionEnd;
       const val = ta.value;
 
+      // Ctrl+Z / Cmd+Z -> Undo; Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y -> Redo
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const lk = e.key.toLowerCase();
+        if (lk === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          editorUndo(ta);
+          return;
+        }
+        if ((lk === 'z' && e.shiftKey) || (lk === 'y' && !e.shiftKey)) {
+          e.preventDefault();
+          editorRedo(ta);
+          return;
+        }
+      }
+
       // Ctrl+/ or Cmd+/ -> Toggle comment on single line or all multi-selected lines
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === '/' || e.code === 'Slash' || e.keyCode === 191)) {
         e.preventDefault();
+        captureEditorCursorBeforeEdit(ta);
         toggleCommentSelection();
         return;
       }
@@ -11368,12 +11613,14 @@
 
       if (e.key === 'Tab') {
         e.preventDefault();
+        captureEditorCursorBeforeEdit(ta);
         indentOrOutdentSelection(e.shiftKey);
         return;
       }
 
       if (e.key === 'Enter') {
         e.preventDefault();
+        captureEditorCursorBeforeEdit(ta);
         const lineStart = val.lastIndexOf('\n', start - 1) + 1;
         const currentLineBeforeCursor = val.slice(lineStart, start);
         const baseIndent = (currentLineBeforeCursor.match(/^\s*/) || [''])[0];
@@ -11410,6 +11657,7 @@
         const nextChar = val[start];
         if (AUTO_PAIRS[prevChar] && AUTO_PAIRS[prevChar] === nextChar) {
           e.preventDefault();
+          captureEditorCursorBeforeEdit(ta);
           ta.value = val.slice(0, start - 1) + val.slice(start + 1);
           ta.selectionStart = ta.selectionEnd = start - 1;
           updateEditorRender();
@@ -11420,6 +11668,7 @@
         const beforeOnLine = val.slice(lineStart, start);
         if (beforeOnLine.length >= 4 && /^ +$/.test(beforeOnLine) && beforeOnLine.length % 4 === 0) {
           e.preventDefault();
+          captureEditorCursorBeforeEdit(ta);
           ta.value = val.slice(0, start - 4) + val.slice(start);
           ta.selectionStart = ta.selectionEnd = start - 4;
           updateEditorRender();
@@ -11442,6 +11691,7 @@
         }
         if (start === end && (!nextChar || /[\s\)\]\},;:]/.test(nextChar))) {
           e.preventDefault();
+          captureEditorCursorBeforeEdit(ta);
           const closeChar = AUTO_PAIRS[e.key];
           ta.value = val.slice(0, start) + e.key + closeChar + val.slice(end);
           ta.selectionStart = ta.selectionEnd = start + 1;
@@ -11547,6 +11797,8 @@
       practiseAgainCurrentProblem,
       revertToSubmission,
       updateSubmissionsUI,
+      editorUndo,
+      editorRedo,
     };
 
     init();

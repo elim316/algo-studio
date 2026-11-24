@@ -1836,6 +1836,106 @@ console.log('CLIENT_SECURITY_OK');
         ):
             self.assertIn(needle, html)
 
+    def test_v234_editor_undo_redo_history(self) -> None:
+        import json
+        import subprocess
+
+        html = (server.PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+        for needle in (
+            'function editorUndo(',
+            'function editorRedo(',
+            'function recordEditorHistorySnapshot(',
+            'function ensureEditorHistoryForActive(',
+            "e.inputType === 'historyUndo'",
+            "id: 'editor-undo'",
+            "id: 'editor-redo'",
+        ):
+            self.assertIn(needle, html)
+
+        # Verify actual multi-step Undo/Redo state transitions (including discrete edits & Python Tutor sync) in Node
+        html_path_js = json.dumps(str(server.PUBLIC_DIR / "index.html"))
+        js_check = f"const HTML_PATH = {html_path_js};\n" + r"""
+const fs = require('fs');
+const html = fs.readFileSync(HTML_PATH, 'utf8');
+const m = html.match(/const EDITOR_HISTORY_MAX = 200;[\s\S]*?function editorRedo\(targetTa = null\) \{[\s\S]*?\n    \}/);
+if (!m) throw new Error('Could not extract Undo/Redo engine');
+
+let state = { activeLang: 'python', draftDirty: false };
+let ptEditMode = false;
+function currentProblem() { return { day: 1 }; }
+function activeProblemKey(p) { return String(p.day); }
+function closeAutocomplete() {}
+function scheduleDraftSave() {}
+function updatePracticeRevertStrip() {}
+function updatePtInlineGutter() {}
+
+const mainTa = {
+  value: 'def twoSum(nums, target):\n    pass',
+  selectionStart: 0,
+  selectionEnd: 0,
+  focus() {},
+  setSelectionRange(s, e) { this.selectionStart = s; this.selectionEnd = e; },
+};
+const ptTa = {
+  value: mainTa.value,
+  selectionStart: 0,
+  selectionEnd: 0,
+  focus() {},
+  setSelectionRange(s, e) { this.selectionStart = s; this.selectionEnd = e; },
+};
+const document = {
+  getElementById(id) {
+    if (id === 'code-editor') return mainTa;
+    if (id === 'pt-inline-editor') return ptTa;
+    return null;
+  },
+};
+function updateEditorRender() {
+  recordEditorHistorySnapshot(mainTa, 'discrete');
+}
+
+eval(m[0]);
+ensureEditorHistoryForActive(mainTa.value);
+
+// 1. Simulate typing 'x' then '=' quickly (coalesced burst)
+mainTa.value += '\n    x'; mainTa.selectionStart = mainTa.selectionEnd = mainTa.value.length;
+recordEditorHistorySnapshot(mainTa, 'type', 'x');
+mainTa.value += '='; mainTa.selectionStart = mainTa.selectionEnd = mainTa.value.length;
+recordEditorHistorySnapshot(mainTa, 'type', '=');
+
+// 2. Simulate discrete Enter auto-indent + auto-pair '()'
+captureEditorCursorBeforeEdit(mainTa);
+mainTa.value += '()\n    '; mainTa.selectionStart = mainTa.selectionEnd = mainTa.value.length;
+updateEditorRender();
+
+// 3. Simulate accidental Reset Starter
+const beforeReset = mainTa.value;
+mainTa.value = 'def twoSum(nums, target):\n    pass';
+updateEditorRender();
+
+// Undo #1 restores code before Reset Starter (and syncs ptTa!)
+editorUndo(mainTa);
+if (mainTa.value !== beforeReset || ptTa.value !== beforeReset) throw new Error('Undo #1 failed');
+
+// Undo #2 reverts Enter + auto-pair
+editorUndo(mainTa);
+if (!mainTa.value.endsWith('x=')) throw new Error('Undo #2 failed: ' + mainTa.value);
+
+// Undo #3 reverts burst typing back to initial starter
+editorUndo(mainTa);
+if (mainTa.value !== 'def twoSum(nums, target):\n    pass') throw new Error('Undo #3 failed');
+
+// Redo #1 and #2 move forward cleanly
+editorRedo(mainTa);
+if (!mainTa.value.endsWith('x=')) throw new Error('Redo #1 failed');
+editorRedo(mainTa);
+if (mainTa.value !== beforeReset) throw new Error('Redo #2 failed');
+
+console.log('UNDO_REDO_ENGINE_OK');
+"""
+        proc = subprocess.run([server.NODE_BIN, "-e", js_check], capture_output=True, text=True, check=True)
+        self.assertIn("UNDO_REDO_ENGINE_OK", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
