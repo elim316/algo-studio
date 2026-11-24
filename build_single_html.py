@@ -968,6 +968,9 @@ pyodide_shim.install_browser_patches()
           const dayNum = Math.max(1, Math.min((__bootData?.curriculum?.problems?.length) || 120, Math.trunc(Number(body?.day || 1))));
           const prob = __problemsByDay[dayNum];
           if (!prob) return { ok: false, error: `Unknown problem day ${dayNum}` };
+          if (prob.isSql || !prob.solutionCode?.typescript) {
+            return { ok: false, error: `Day ${dayNum} (${prob.leetcodeId}) runs in ${prob.isSql ? 'SQL' : 'Python 3'}. Switch the language selector.` };
+          }
           const res = __runTypeScriptTestCases(prob.funcName, String(body?.code || ''), prob.testCases || []);
           const prog = __loadProgressLocal(false);
           prog.drafts[`${dayNum}:typescript`] = String(body?.code || '');

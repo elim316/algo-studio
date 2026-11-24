@@ -11,14 +11,33 @@ annotated optimal solutions in Python, Go, and TypeScript.
 
 from __future__ import annotations
 
+import copy
+import json
+from pathlib import Path
 from typing import Any
 
+from curriculum_extra_46 import EXTRA_46_PROBLEMS
 from edge_cases_data import (
     EDGE_CASE_PLAYBOOK,
     EDGE_CASE_RESOURCES,
     EXPANDED_HIDDEN_TESTS_BY_FUNC,
     get_edge_case_checklist_for_tags,
 )
+
+
+def _load_curated_by_id() -> dict[str, dict[str, Any]]:
+    cat_path = Path(__file__).resolve().parent / "curated_catalog.json"
+    if not cat_path.exists():
+        return {}
+    try:
+        raw = json.loads(cat_path.read_text(encoding="utf-8"))
+        by_id = raw.get("problemsById")
+        return by_id if isinstance(by_id, dict) else {}
+    except Exception:
+        return {}
+
+
+_CURATED_BY_ID: dict[str, dict[str, Any]] = _load_curated_by_id()
 
 # All 74 tags from the user's uploaded LeetCode topic image with problem counts
 IMAGE_TAGS: list[dict[str, Any]] = [
@@ -1556,6 +1575,17 @@ def _attach_hidden_test_cases(prob: dict[str, Any]) -> dict[str, Any]:
     return prob
 
 
+def _lookup_curated_problem(sched: dict[str, Any]) -> dict[str, Any] | None:
+    lc = str(sched.get("lc") or "").strip()
+    if lc.startswith("LC "):
+        num = lc[3:].strip()
+        if f"lc-{num}" in _CURATED_BY_ID:
+            return _CURATED_BY_ID[f"lc-{num}"]
+        if f"sql-{num}" in _CURATED_BY_ID:
+            return _CURATED_BY_ID[f"sql-{num}"]
+    return None
+
+
 def _build_full_problem(sched: dict[str, Any]) -> dict[str, Any]:
     day = sched["day"]
     phase_num = sched["phase"]
@@ -1576,6 +1606,83 @@ def _build_full_problem(sched: dict[str, Any]) -> dict[str, Any]:
         return _attach_hidden_test_cases(p)
 
     bp = _BLUEPRINT_BY_DAY.get(day, {})
+
+    if day in EXTRA_46_PROBLEMS:
+        extra = copy.deepcopy(EXTRA_46_PROBLEMS[day])
+        p = {
+            **extra,
+            "day": day,
+            "id": f"day-{day:03d}",
+            "leetcodeId": sched["lc"],
+            "title": sched["title"],
+            "difficulty": sched["diff"],
+            "phase": phase_num,
+            "phaseTitle": phase_info["title"],
+            "tags": sched["tags"],
+            "url": sched["url"],
+            "edgeCaseChecklist": get_edge_case_checklist_for_tags(sched["tags"]),
+        }
+        return p
+
+    cur = _lookup_curated_problem(sched)
+    if cur is not None:
+        cur_copy = copy.deepcopy(cur)
+        cur_mm = cur_copy.get("mentalModel") or {}
+        trap = bp.get("trap") or cur_mm.get("instinctiveTrap") or ""
+        pivot = bp.get("pivot") or cur_mm.get("optimalPivot") or ""
+        signal = bp.get("signal") or cur_mm.get("triggerSignal") or ""
+        raw_tcs = list(cur_copy.get("testCases") or [])
+        vis_tcs = [dict(tc, hidden=False) for tc in raw_tcs]
+        is_sql = bool(cur_copy.get("isSql"))
+        func_name = cur_copy.get("funcName") or (
+            f"sql_day_{day}" if is_sql else (cur_copy.get("harness") or {}).get("methodName") or f"solve_day_{day}"
+        )
+        p = {
+            "day": day,
+            "id": f"day-{day:03d}",
+            "leetcodeId": sched["lc"],
+            "title": sched["title"],
+            "difficulty": sched["diff"],
+            "phase": phase_num,
+            "phaseTitle": phase_info["title"],
+            "tags": sched["tags"],
+            "url": cur_copy.get("url") or sched["url"],
+            "statement": cur_copy.get("statement") or "",
+            "examples": cur_copy.get("examples") or [],
+            "constraints": cur_copy.get("constraints") or [],
+            "clarifyingQuestions": cur_copy.get("clarifyingQuestions") or [],
+            "mentalModel": {
+                "instinctiveTrap": trap,
+                "optimalPivot": pivot,
+                "triggerSignal": signal,
+            },
+            "hints": cur_copy.get("hints") or [],
+            "funcName": func_name,
+            "harness": cur_copy.get("harness"),
+            "isSql": is_sql,
+            "starterCode": cur_copy.get("starterCode") or {},
+            "solutionCode": cur_copy.get("solutionCode") or {},
+            "walkthrough": cur_copy.get("walkthrough") or "",
+            "traceSteps": cur_copy.get("traceSteps") or [
+                {"step": 1, "focus": "Initialise state & guard clauses", "stateVars": f"{sched['lc']} base state", "note": "Handle empty, single-element, or degenerate boundaries upfront."},
+                {"step": 2, "focus": "Execute core invariant", "stateVars": f"Pattern: {sched['tags'][0]}", "note": pivot or f"Apply optimal transition for {sched['title']}."},
+                {"step": 3, "focus": "Return verified result", "stateVars": f"Target: {(cur_copy.get('complexity') or {}).get('optimalTime', 'Optimal')}", "note": "Confirm boundary conditions before returning."},
+            ],
+            "complexity": cur_copy.get("complexity") or {},
+            "interviewFollowUp": cur_copy.get("interviewFollowUp") or {
+                "question": f"How would an interviewer extend {sched['title']} under production scale?",
+                "answer": "Expect follow-ups around streaming inputs, bounded memory, concurrency, or custom tie-breaking requirements.",
+            },
+            "visibleTestCases": vis_tcs,
+            "hiddenTestCases": [],
+            "testCases": vis_tcs,
+            "edgeCaseChecklist": get_edge_case_checklist_for_tags(sched["tags"]),
+        }
+        for opt_key in ("approaches", "beginnerGuide", "companies", "sqlSchema", "referenceSql", "schemaTables"):
+            if opt_key in cur_copy:
+                p[opt_key] = cur_copy[opt_key]
+        return p
+
     solver = _PHASE_SOLVERS[phase_num]
     trap = bp.get("trap") or solver["trap"]
     pivot = bp.get("pivot") or solver["pivot"]

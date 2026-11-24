@@ -379,6 +379,19 @@ def _compute_expected_via_reference_python(prob: dict[str, Any], custom_args: li
     func_name = prob["funcName"]
     if not ref_code:
         return None
+    if prob.get("harness"):
+        try:
+            ref_run = cl.execute_curated_python(
+                {**prob, "testCases": [{"label": "Custom Input", "args": custom_args, "expected": None}]},
+                ref_code,
+                custom_test_args=None,
+                capture_frames=False,
+            )
+            if ref_run.get("ok") and ref_run.get("results"):
+                return ref_run["results"][0].get("actual")
+        except Exception:
+            return None
+        return None
     try:
         ns: dict[str, Any] = {}
         exec(compile(ref_code, "<ref>", "exec"), ns)
@@ -397,30 +410,50 @@ def execute_user_code(
     code: str,
     custom_test_args: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """Execute user solution in Python, Go, or TypeScript with line-level debug tracing and optional custom test input."""
+    """Execute user solution in Python, Go, TypeScript, or SQL with line-level debug tracing and optional custom test input."""
     prob = cd.PROBLEMS_BY_DAY.get(day)
     if not prob:
         return {"ok": False, "error": f"Unknown problem day {day}"}
 
+    if prob.get("isSql") or language == "sql":
+        if not prob.get("isSql"):
+            return {"ok": False, "error": f"Day {day} is a coding problem. Switch language to Python 3."}
+        return cl.execute_curated_sql(prob, code)
+
     func_name = prob["funcName"]
     test_cases = list(prob["testCases"])
-    if custom_test_args is not None and isinstance(custom_test_args, list):
-        expected_val = _compute_expected_via_reference_python(prob, custom_test_args)
-        custom_tc = {
-            "label": "Custom Input",
-            "args": custom_test_args,
-            "expected": expected_val,
-        }
-        test_cases = test_cases + [custom_tc]
-
-    if language == "python":
-        res = _run_python(func_name, code, test_cases)
-    elif language == "typescript":
-        res = _run_typescript(func_name, code, test_cases)
-    elif language == "go":
-        res = _run_go(func_name, code, test_cases)
+    if prob.get("harness"):
+        if language != "python":
+            return {
+                "ok": False,
+                "error": f"Day {day} ({prob['leetcodeId']}) runs in Python 3. Switch the language selector to Python 3.",
+            }
+        res = cl.execute_curated_python(
+            prob,
+            code,
+            custom_test_args=custom_test_args,
+            capture_frames=True,
+        )
+        if custom_test_args is not None and isinstance(custom_test_args, list):
+            test_cases = test_cases + [{"label": "Custom Input", "args": custom_test_args, "hidden": False}]
     else:
-        return {"ok": False, "error": f"Unsupported language: {language}"}
+        if custom_test_args is not None and isinstance(custom_test_args, list):
+            expected_val = _compute_expected_via_reference_python(prob, custom_test_args)
+            custom_tc = {
+                "label": "Custom Input",
+                "args": custom_test_args,
+                "expected": expected_val,
+            }
+            test_cases = test_cases + [custom_tc]
+
+        if language == "python":
+            res = _run_python(func_name, code, test_cases)
+        elif language == "typescript":
+            res = _run_typescript(func_name, code, test_cases)
+        elif language == "go":
+            res = _run_go(func_name, code, test_cases)
+        else:
+            return {"ok": False, "error": f"Unsupported language: {language}"}
 
     if isinstance(res.get("results"), list):
         vis_passed = 0
@@ -455,6 +488,17 @@ def trace_optimal_solution(day: int, tc_idx: int = 0) -> dict[str, Any]:
     prob = cd.PROBLEMS_BY_DAY.get(day)
     if not prob:
         return {"ok": False, "error": f"Unknown problem day {day}"}
+    if prob.get("isSql"):
+        return {
+            "ok": True,
+            "day": day,
+            "tcIdx": 0,
+            "language": "sql",
+            "code": prob.get("solutionCode", {}).get("sql", ""),
+            "input": [],
+            "expected": [],
+            "frames": [],
+        }
     opt_code = prob.get("solutionCode", {}).get("python", "")
     if not opt_code:
         return {"ok": False, "error": f"No Python optimal solution found for Day {day}"}
@@ -463,7 +507,10 @@ def trace_optimal_solution(day: int, tc_idx: int = 0) -> dict[str, Any]:
         return {"ok": False, "error": f"No test cases found for Day {day}"}
     safe_idx = max(0, min(len(test_cases) - 1, int(tc_idx)))
     tc = test_cases[safe_idx]
-    res = _run_python(prob["funcName"], opt_code, [tc])
+    if prob.get("harness"):
+        res = cl.execute_curated_python({**prob, "testCases": [tc]}, opt_code, capture_frames=True)
+    else:
+        res = _run_python(prob["funcName"], opt_code, [tc])
     if not res.get("ok"):
         return res
     first_res = (res.get("results") or [{}])[0]
@@ -2355,6 +2402,103 @@ def analyse_user_code(day: int, language: str, code: str) -> dict[str, Any]:
     if not prob:
         return {"ok": False, "error": f"Unknown problem day {day}"}
 
+    if prob.get("isSql") or language == "sql":
+        stripped_sql = code.strip()
+        starter_sql = (prob.get("starterCode") or {}).get("sql", "").strip()
+        sql_lines = [ln for ln in stripped_sql.splitlines() if ln.strip() and not ln.strip().startswith(("#", "--", "//"))]
+        is_sql_skel = (
+            not sql_lines
+            or stripped_sql == starter_sql
+            or stripped_sql.rstrip(";").strip().upper() == "SELECT"
+        )
+        run_res = cl.execute_curated_sql(prob, code) if not is_sql_skel else {
+            "ok": True,
+            "isSql": True,
+            "passed": 0,
+            "total": max(1, len(prob.get("testCases") or [])),
+            "visiblePassed": 0,
+            "visibleTotal": max(1, len(prob.get("testCases") or [])),
+            "hiddenPassed": 0,
+            "hiddenTotal": 0,
+            "allPassed": False,
+            "results": [],
+            "isSkeleton": True,
+        }
+        all_passed = bool(run_res.get("allPassed"))
+        first_err = run_res.get("error") or ""
+        sql_up = stripped_sql.upper()
+        has_select = "SELECT " in sql_up or "DELETE " in sql_up
+        has_from = "FROM " in sql_up
+        has_join_or_agg = any(k in sql_up for k in ("JOIN ", "GROUP BY", "OVER(", "OVER (", "WITH ", "UNION", "HAVING", "WHERE "))
+        has_explicit_cols = has_select and ("SELECT *" not in sql_up or "DELETE " in sql_up)
+        has_null_or_guard = any(k in sql_up for k in ("IS NULL", "IS NOT NULL", "COALESCE", "IFNULL", "CASE ", "WHERE ", "HAVING ", "DISTINCT", "ROUND("))
+        followup_q = prob.get("interviewFollowUp", {}).get("question", "How would you index these tables for 100M rows?")
+
+        ax1 = _build_axis_entry("Data Structures & Algorithms", [
+            _make_criterion("Query result accuracy", 6 if all_passed else 0, 6, "Output matches expected rows and columns." if all_passed else (f"SQL error: `{first_err[:100]}`" if first_err else "Returned rows do not match expected result set."), "Compare actual vs expected tables in the Test Console.", target_line=1 if not all_passed else None),
+            _make_criterion("Relational pattern & clauses", 6 if (all_passed and has_from) else (3 if has_join_or_agg else 0), 6, "Uses relational joins/windows cleanly." if has_from else "Missing core relational query structure.", f"Apply the target SQL pattern: {prob['mentalModel']['optimalPivot']}"),
+            _make_criterion("Window / aggregation design", 5 if (all_passed and has_join_or_agg) else (2 if has_join_or_agg else 0), 5, "Relational filtering and ranking logic matches target grain." if all_passed else "Use `JOIN`, `GROUP BY`, or `DENSE_RANK() OVER (...)` cleanly.", "Review the problem's partitioning and ranking clauses."),
+            _make_criterion("Set-based efficiency", 3 if all_passed else (1 if has_select else 0), 3, "Set-based SQL executes cleanly in sub-millisecond time." if all_passed else "Query is not yet passing against the seeded dataset.", "Prefer single-pass joins/window functions over correlated subqueries."),
+        ], "Accurate, set-based relational query matching expected results.")
+
+        ax2 = _build_axis_entry("Programming & Language Idioms", [
+            _make_criterion("Valid SQLite syntax", 5 if (not is_sql_skel and not first_err) else (2 if is_sql_skel else 0), 5, "Parses and executes with zero SQLite syntax errors." if (not is_sql_skel and not first_err) else (first_err or "Starter SQL template has no query yet."), "Fix SQLite syntax and match schema column names.", target_line=1 if first_err else None),
+            _make_criterion("Explicit column projection", 5 if (not is_sql_skel and has_explicit_cols) else (2 if has_select else 0), 5, "Explicitly projects required columns rather than `SELECT *`." if has_explicit_cols else "Specify explicit output columns and aliases.", "List exact output columns (`AS alias`) instead of `SELECT *`."),
+            _make_criterion("Idiomatic SQL clauses", 5 if (all_passed or has_join_or_agg) else (0 if is_sql_skel else 2), 5, "Uses clean declarative SQL clauses." if (all_passed or has_join_or_agg) else "Pending full SQL query.", "Use standard ANSI SQL (`WITH`, `JOIN`, `DENSE_RANK()`)."),
+            _make_criterion("Readable formatting", 5 if (not is_sql_skel and len(sql_lines) >= 2) else (0 if is_sql_skel else 3), 5, "Clean multi-line SQL formatting." if len(sql_lines) >= 2 else "Compact or empty query.", "Break `SELECT`, `FROM`, `JOIN`, and `WHERE` onto separate lines."),
+        ], "Clean, idiomatic SQL syntax with explicit column projections.")
+
+        ax3 = _build_axis_entry("Code Comprehension & Edge Cases", [
+            _make_criterion("Full dataset accuracy", 8 if all_passed else 0, 8, "Cleared all seeded SQL dataset assertions." if all_passed else "Query output does not match expected rows yet.", "Inspect Expected vs Your Query Output tables below."),
+            _make_criterion("NULL & missing-match safety", 5 if all_passed else (2 if has_null_or_guard else 0), 5, "Handles NULL values and edge rows cleanly." if all_passed else "Guard NULL comparisons with `IS NULL` / `COALESCE`.", "Verify outer join and NULL predicate handling."),
+            _make_criterion("Tie & grain correctness", 4 if all_passed else (2 if has_join_or_agg else 0), 4, "Verified exact row grain and tie behaviour (`DENSE_RANK` vs `ROW_NUMBER`)." if all_passed else "Verify tie handling and grouping grain.", "Use `DENSE_RANK()` instead of `ROW_NUMBER()` when tied top salaries must all be kept."),
+            _make_criterion("Schema boundary resilience", 3 if all_passed else (1 if has_from else 0), 3, "Handles departments with fewer than 3 unique salaries cleanly." if all_passed else "Check sparse groups with fewer than K distinct rows.", "Ensure `<= 3` rank filtering handles smaller departments cleanly."),
+        ], "Verified NULL safety, tie handling, and row grain accuracy.")
+
+        ax4 = _build_axis_entry("Dry-Run & Debugging Readiness", [
+            _make_criterion("Zero SQL runtime errors", 6 if all_passed else (2 if (not is_sql_skel and not first_err) else 0), 6, "Executed with zero SQLite errors and matching row count." if all_passed else (first_err or "Inspect query output rows below."), "Resolve any SQL error or column mismatch.", target_line=1 if first_err else None),
+            _make_criterion("Clear table aliases", 5 if (not is_sql_skel and has_from) else 0, 5, "Table references and joins are unambiguous." if has_from else "Use explicit table aliases on joined columns.", "Qualify columns with explicit aliases (`e.salary`, `d.name`)."),
+            _make_criterion("Traceable query stages", 5 if (not is_sql_skel and len(sql_lines) >= 2) else (0 if is_sql_skel else 3), 5, "Easy to dry-run intermediate result sets step by step." if len(sql_lines) >= 2 else "Structure query stages clearly.", "Use a readable CTE (`WITH ranked AS (...)`) or subquery."),
+            _make_criterion("Deterministic output contract", 4 if all_passed else (1 if has_explicit_cols else 0), 4, "Matches exact expected column aliases and row semantics." if all_passed else "Check exact output column names.", "Match output column aliases exactly."),
+        ], "Clear, easily verifiable SQL execution stages.")
+
+        ax5 = _build_axis_entry("FDE Production & Extensibility", [
+            _make_criterion("Clean query structure", 6 if (all_passed and len(sql_lines) >= 2) else (2 if not is_sql_skel else 0), 6, "Clean staged CTE/subquery structure." if all_passed else "Separate ranking/filtering stages cleanly.", "Structure ranking inside a CTE or derived table."),
+            _make_criterion("Read-only side-effect safety", 5 if not is_sql_skel else 0, 5, "Pure read-only query with zero unintended table mutations." if not is_sql_skel else "Pending query.", "Keep analytical queries strictly read-only."),
+            _make_criterion("Index & scale friendliness", 5 if all_passed else (2 if has_from else 0), 5, "Scales cleanly with composite `(departmentId, salary)` indexes." if all_passed else "Keep join and filter predicates sargable.", "Avoid wrapping indexed join keys in functions."),
+            _make_criterion("Schema contract & extensibility", 4 if (all_passed and has_explicit_cols) else (1 if has_explicit_cols else 0), 4, "Explicit column contract survives upstream schema changes." if (all_passed and has_explicit_cols) else "Project explicit columns rather than `SELECT *`.", f"Be ready for follow-up scale questions: {followup_q}"),
+        ], "Production-ready SQL contract with index-friendly predicates.")
+
+        rubric = [ax1, ax2, ax3, ax4, ax5]
+        total_score = sum(a["score"] for a in rubric)
+        points_to_full = 100 - total_score
+        improvement_plan = _build_improvement_plan(rubric, run_ok=(not first_err))
+        hiring_signal = (
+            "Strong Hire (Full Marks: 100 / 100)" if total_score == 100
+            else ("Leaning Hire (Refine SQL gaps below)" if total_score >= 70 else ("Starter SQL Template" if is_sql_skel else "In Progress"))
+        )
+        diagnosis = (
+            f"Full marks (100/100) on Day {day} ({prob['leetcodeId']})! Every column, row, and tie edge case matches the SQLite dataset."
+            if total_score == 100
+            else f"Score is {total_score}/100 (+{points_to_full} pts available). Follow the priority SQL improvements below to hit 100/100."
+        )
+        return {
+            "ok": True,
+            "day": day,
+            "language": "sql",
+            "analysedCode": code,
+            "totalScore": total_score,
+            "pointsToFullMarks": points_to_full,
+            "hiringSignal": hiring_signal,
+            "runResult": run_res,
+            "diagnosis": diagnosis,
+            "followUpStretch": followup_q,
+            "improvementPlan": improvement_plan,
+            "rubric": rubric,
+            "thinkingShift": prob.get("mentalModel", {}),
+            "chatPrompt": f"I am solving Day {day} ({prob['leetcodeId']}: {prob['title']}). Score: {total_score}/100.\n```sql\n{stripped_sql}\n```\nExplain how to reach 100/100.",
+        }
+
     stripped = code.strip()
     starter_stripped = prob["starterCode"].get(language, "").strip()
     lines = [ln for ln in stripped.splitlines() if ln.strip() and not ln.strip().startswith(("#", "//"))]
@@ -2381,6 +2525,21 @@ def analyse_user_code(day: int, language: str, code: str) -> dict[str, Any]:
     ref_code = prob.get("solutionCode", {}).get(language, "") or prob.get("solutionCode", {}).get("python", "")
     user_m = _compute_code_metrics(language, code, func_name)
     ref_m = _compute_code_metrics(language, ref_code, func_name)
+    if language == "python" and prob.get("harness"):
+        h_cfg = prob.get("harness") or {}
+        if not user_m["hasFuncDef"] and re.search(rf"\b(?:def\s+{re.escape(func_name)}|class\s+{re.escape(func_name)})\b", code):
+            user_m["hasFuncDef"] = True
+        if user_m["hasFuncDef"] and not user_m["hasTypeAnnotations"]:
+            user_m["hasTypeAnnotations"] = bool(
+                re.search(r"def\s+\w+\s*\([^)]*:\s*[^)]+\)\s*->", code)
+                or ("class " in code and "def __init__" in code)
+            )
+        if not user_m["hasReturnStmt"] and (
+            re.search(r"\breturn\b", code)
+            or h_cfg.get("returnType") == "void"
+            or h_cfg.get("inPlaceArgIndex") is not None
+        ):
+            user_m["hasReturnStmt"] = True
 
     run_ok = bool(run_res.get("ok")) and not bool(run_res.get("syntaxErrorPartialRun"))
     all_passed = bool(run_res.get("allPassed")) and run_ok
@@ -2528,7 +2687,7 @@ def analyse_user_code(day: int, language: str, code: str) -> dict[str, Any]:
             f"Starter code does not yet use the `{primary_tag}` pattern.",
             f"Introduce `{primary_tag}` state to maintain the core invariant: {mm['optimalPivot']}",
         )
-    elif pattern_matched and not is_suboptimal_nested and all_passed:
+    elif (pattern_matched or prob.get("harness")) and not is_suboptimal_nested and all_passed:
         used_str = ", ".join(detected_patterns[:3]) if detected_patterns else primary_tag
         c1_pattern = _make_criterion(
             "Target pattern & data structure", 5, 5,
@@ -2645,7 +2804,7 @@ def analyse_user_code(day: int, language: str, code: str) -> dict[str, Any]:
             "No implemented body yet to evaluate language idioms.",
             idiom_hints.get(language, idiom_hints["python"]),
         )
-    elif user_m["usesIdiomatic"]:
+    elif user_m["usesIdiomatic"] or (prob.get("harness") and all_passed):
         c2_idioms = _make_criterion(
             "Idiomatic language constructs", 5, 5,
             f"Uses clean, idiomatic {language.capitalize()} constructs without redundant boilerplate.",
@@ -2675,15 +2834,16 @@ def analyse_user_code(day: int, language: str, code: str) -> dict[str, Any]:
             naming_issues.append(f"leftover debug print/log on Line {ln_str}")
             naming_fixes.append(f"remove debug print/log statement on Line {ln_str} before final submission")
             naming_line = user_m["debugPrintLines"][0]
-        if user_m["crypticContainers"] and not user_m["descriptiveVars"]:
-            naming_pts -= 2
-            cnames = ", ".join(f"`{v}`" for v in user_m["crypticContainers"][:3])
-            naming_issues.append(f"single-letter container name ({cnames})")
-            naming_fixes.append(f"rename {cnames} to a descriptive state name such as `seen`, `counts`, or `groups`")
-        elif not user_m["descriptiveVars"] and len(user_m["declaredVars"]) >= 2:
-            naming_pts -= 2
-            naming_issues.append(f"all state variables are single letters (`{', '.join(user_m['declaredVars'][:4])}`)")
-            naming_fixes.append("give key state variables descriptive names so an interviewer can read invariants at a glance")
+        if not prob.get("harness"):
+            if user_m["crypticContainers"] and not user_m["descriptiveVars"]:
+                naming_pts -= 2
+                cnames = ", ".join(f"`{v}`" for v in user_m["crypticContainers"][:3])
+                naming_issues.append(f"single-letter container name ({cnames})")
+                naming_fixes.append(f"rename {cnames} to a descriptive state name such as `seen`, `counts`, or `groups`")
+            elif not user_m["descriptiveVars"] and len(user_m["declaredVars"]) >= 2:
+                naming_pts -= 2
+                naming_issues.append(f"all state variables are single letters (`{', '.join(user_m['declaredVars'][:4])}`)")
+                naming_fixes.append("give key state variables descriptive names so an interviewer can read invariants at a glance")
         if user_m["hasGlobalStmt"]:
             naming_pts -= 2
             naming_issues.append("uses `global` state mutation")
@@ -2726,10 +2886,14 @@ def analyse_user_code(day: int, language: str, code: str) -> dict[str, Any]:
             f"Fix Line {err_line or 1} first, then re-run to test all {hid_total} hidden edge cases.",
             target_line=err_line,
         )
-    elif hid_passed == hid_total and hid_total > 0:
+    elif (hid_passed == hid_total and hid_total > 0) or (hid_total == 0 and all_passed):
         c3_hidden = _make_criterion(
             "Hidden edge-case suite", 8, 8,
-            f"Passed all {hid_passed}/{hid_total} hidden adversarial edge cases.",
+            (
+                f"Passed all {hid_passed}/{hid_total} hidden adversarial edge cases."
+                if hid_total > 0
+                else f"Passed all {passed_cnt}/{total_cnt} verification and edge-case tests."
+            ),
         )
     else:
         pts = max(0, min(7, int(round(8 * hid_passed / max(1, hid_total)))))
@@ -2899,7 +3063,7 @@ def analyse_user_code(day: int, language: str, code: str) -> dict[str, Any]:
             "No intermediate state transitions exist yet for a whiteboard dry-run.",
             "Break the algorithm into clear, line-by-line state transitions so you can narrate a dry-run table smoothly.",
         )
-    elif user_m["lineCount"] >= 4 and (user_m["declaredVars"] or user_m["bodyStatements"] >= 2):
+    elif user_m["lineCount"] >= 4 and (user_m["declaredVars"] or user_m["bodyStatements"] >= 2 or (prob.get("harness") and all_passed)):
         c4_trace = _make_criterion(
             "Traceable state visibility", 5, 5,
             f"Multi-step state flow ({user_m['lineCount']} code lines) makes step-by-step whiteboard dry-running straightforward.",
@@ -3563,6 +3727,8 @@ def run_fde_stress_test(day: int, language: str, code: str) -> dict[str, Any]:
     prob = cd.PROBLEMS_BY_DAY.get(day)
     if not prob:
         return {"ok": False, "error": f"Unknown Day {day}"}
+    if prob.get("isSql"):
+        return {"ok": False, "error": "Stress benchmark applies to Python, Go, and TypeScript problems."}
     base_cases = prob.get("testCases", [])
     if not base_cases:
         return {"ok": False, "error": "No baseline test cases available"}

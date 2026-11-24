@@ -7155,20 +7155,26 @@
 
       stopVisualiserPlayback();
 
-      // Synchronise language selector for SQL 50 vs DSA problems
+      // Synchronise language selector with the active problem's supported languages
       const langSel = document.getElementById('lang-select');
       const sqlOpt = langSel ? langSel.querySelector('option[value="sql"]') : null;
+      const pyOpt = langSel ? langSel.querySelector('option[value="python"]') : null;
+      const tsOpt = langSel ? langSel.querySelector('option[value="typescript"]') : null;
+      const goOpt = langSel ? langSel.querySelector('option[value="go"]') : null;
+      const hasLangStarter = (lang) => Boolean(p.starterCode && p.starterCode[lang]);
       if (p.isSql) {
         if (sqlOpt) sqlOpt.disabled = false;
+        if (pyOpt) pyOpt.disabled = true;
+        if (tsOpt) tsOpt.disabled = true;
+        if (goOpt) goOpt.disabled = true;
         state.activeLang = 'sql';
         if (langSel) langSel.value = 'sql';
       } else {
         if (sqlOpt) sqlOpt.disabled = true;
-        if (state.activeLang === 'sql') {
-          state.activeLang = 'python';
-        }
-        if (p.isCurated && state.activeLang !== 'python') {
-          // Curated DSA problems run natively in Python 3 harness
+        if (pyOpt) pyOpt.disabled = false;
+        if (tsOpt) tsOpt.disabled = !hasLangStarter('typescript');
+        if (goOpt) goOpt.disabled = !hasLangStarter('go');
+        if (state.activeLang === 'sql' || !hasLangStarter(state.activeLang)) {
           state.activeLang = 'python';
         }
         if (langSel) langSel.value = state.activeLang;
@@ -7245,15 +7251,17 @@
         if (hiddenCasesSection) hiddenCasesSection.style.display = 'none';
         if (consoleRevealBtn) consoleRevealBtn.style.display = 'none';
       } else {
+        const hasHiddenCases = !p.isCurated && Array.isArray(p.hiddenTestCases) && p.hiddenTestCases.length > 0;
+        const isSpecialDriver = Boolean(p.harness && p.harness.customDriver);
         if (sqlSchemaBox) sqlSchemaBox.style.display = 'none';
         if (liveVisCard) liveVisCard.style.display = '';
-        if (customTcRow) customTcRow.style.display = p.isCurated ? 'none' : '';
-        if (stressBtn) stressBtn.style.display = p.isCurated ? 'none' : '';
+        if (customTcRow) customTcRow.style.display = (p.isCurated || isSpecialDriver) ? 'none' : '';
+        if (stressBtn) stressBtn.style.display = (p.isCurated || isSpecialDriver) ? 'none' : '';
         if (visBtn) visBtn.style.display = '';
         if (splitBtn) splitBtn.style.display = '';
         if (edgeCheckBox) edgeCheckBox.style.display = '';
-        if (hiddenCasesSection) hiddenCasesSection.style.display = p.isCurated ? 'none' : '';
-        if (consoleRevealBtn) consoleRevealBtn.style.display = p.isCurated ? 'none' : '';
+        if (hiddenCasesSection) hiddenCasesSection.style.display = hasHiddenCases ? '' : 'none';
+        if (consoleRevealBtn) consoleRevealBtn.style.display = hasHiddenCases ? '' : 'none';
       }
 
       const exList = document.getElementById('prob-examples-list');

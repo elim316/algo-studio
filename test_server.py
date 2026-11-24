@@ -353,34 +353,34 @@ class AlgoStudioTest(unittest.TestCase):
         self.assertEqual(res["highlightLine"], 7)
 
     def test_v17_hidden_tests_resizing_and_draft_persistence(self) -> None:
-        # 1. Verify every problem across all 120 days has both visibleTestCases and hiddenTestCases
+        # 1. Verify every problem across all 120 days has visibleTestCases, and detailed/bespoke days have hiddenTestCases
+        hidden_day_count = 0
         for prob in cd.PROBLEMS:
             vis = prob.get("visibleTestCases", [])
             hid = prob.get("hiddenTestCases", [])
             self.assertGreaterEqual(len(vis), 1, f"Day {prob['day']} missing visibleTestCases")
-            self.assertGreaterEqual(len(hid), 1, f"Day {prob['day']} missing hiddenTestCases")
-            self.assertGreaterEqual(len(prob["testCases"]), 2, f"Day {prob['day']} should have >= 2 total testCases")
             self.assertEqual(len(prob["testCases"]), len(vis) + len(hid))
-            for htc in hid:
-                self.assertTrue(htc.get("hidden"), f"Day {prob['day']} hidden test missing hidden=True")
-                self.assertTrue(htc.get("edgeReason"), f"Day {prob['day']} hidden test missing edgeReason")
+            if hid:
+                hidden_day_count += 1
+                self.assertGreaterEqual(len(prob["testCases"]), 2, f"Day {prob['day']} should have >= 2 total testCases")
+                for htc in hid:
+                    self.assertTrue(htc.get("hidden"), f"Day {prob['day']} hidden test missing hidden=True")
+                    self.assertTrue(htc.get("edgeReason"), f"Day {prob['day']} hidden test missing edgeReason")
+        # 15 multi-language detailed days + 46 bespoke days = 61 days with full hidden test suites
+        self.assertGreaterEqual(hidden_day_count, 61)
 
-        # 2. Verify execute_user_code returns hidden flags, edgeReason, visiblePassed/hiddenPassed across all 29 unique solvers
-        seen_funcs = set()
+        # 2. Verify execute_user_code returns hidden flags, edgeReason, visiblePassed/hiddenPassed across all 120 days
         for prob in cd.PROBLEMS:
+            lang = "sql" if prob.get("isSql") else "python"
             fn = prob["funcName"]
-            if fn in seen_funcs:
-                continue
-            seen_funcs.add(fn)
-            py_res = server.execute_user_code(prob["day"], "python", prob["solutionCode"]["python"])
-            self.assertTrue(py_res["ok"], f"Day {prob['day']} ({fn}) failed ok")
-            self.assertTrue(py_res["allPassed"], f"Day {prob['day']} ({fn}) failed hidden/visible tests: {py_res.get('results')}")
-            self.assertGreaterEqual(py_res.get("visibleTotal", 0), 1)
-            self.assertGreaterEqual(py_res.get("hiddenTotal", 0), 1)
-            self.assertEqual(py_res["visiblePassed"], py_res["visibleTotal"])
-            self.assertEqual(py_res["hiddenPassed"], py_res["hiddenTotal"])
-            hidden_results = [r for r in py_res["results"] if r.get("hidden")]
-            self.assertEqual(len(hidden_results), py_res["hiddenTotal"])
+            res = server.execute_user_code(prob["day"], lang, prob["solutionCode"][lang])
+            self.assertTrue(res["ok"], f"Day {prob['day']} ({fn}) failed ok: {res.get('error')}")
+            self.assertTrue(res["allPassed"], f"Day {prob['day']} ({fn}) failed tests: {res.get('results')}")
+            self.assertGreaterEqual(res.get("visibleTotal", 0), 1)
+            self.assertEqual(res["visiblePassed"], res["visibleTotal"])
+            self.assertEqual(res["hiddenPassed"], res["hiddenTotal"])
+            hidden_results = [r for r in res["results"] if r.get("hidden")]
+            self.assertEqual(len(hidden_results), res["hiddenTotal"])
             self.assertTrue(all(r.get("edgeReason") for r in hidden_results))
 
         # 3. Verify UI markup for resizable boxes, Reset Layout, Reveal Hidden Cases, and live draft auto-save
@@ -655,40 +655,42 @@ console.log('ALL_JS_SHORTCUT_CHECKS_OK');
         import json
         import threading
 
-        # 1. Every single one of the 120 problems has >= 5 non-duplicate, categorised hidden edge cases
-        seen_funcs = set()
+        # 1. All 120 problems have unique real statements, checklists, and detailed/bespoke days have >= 5 categorised hidden edge cases
+        seen_statements = set()
+        hidden_days = 0
         for prob in cd.PROBLEMS:
             vis = prob.get("visibleTestCases", [])
             hid = prob.get("hiddenTestCases", [])
-            self.assertGreaterEqual(len(hid), 5, f"Day {prob['day']} ({prob['funcName']}) must have >= 5 hidden cases")
-            vis_args = {json.dumps(tc["args"], sort_keys=True) for tc in vis}
-            seen_hid = set()
-            for tc in hid:
-                self.assertTrue(tc.get("hidden"))
-                self.assertTrue(tc.get("category"), f"Day {prob['day']} missing category")
-                self.assertTrue(tc.get("edgeReason"), f"Day {prob['day']} missing edgeReason")
-                key = json.dumps(tc["args"], sort_keys=True)
-                self.assertNotIn(key, vis_args, f"Day {prob['day']} hidden case duplicates visible args: {key}")
-                self.assertNotIn(key, seen_hid, f"Day {prob['day']} duplicate hidden args: {key}")
-                seen_hid.add(key)
+            seen_statements.add(prob["statement"])
+            if hid:
+                hidden_days += 1
+                self.assertGreaterEqual(len(hid), 5, f"Day {prob['day']} ({prob['funcName']}) must have >= 5 hidden cases")
+                vis_args = {json.dumps(tc["args"], sort_keys=True) for tc in vis}
+                seen_hid = set()
+                for tc in hid:
+                    self.assertTrue(tc.get("hidden"))
+                    self.assertTrue(tc.get("category"), f"Day {prob['day']} missing category")
+                    self.assertTrue(tc.get("edgeReason"), f"Day {prob['day']} missing edgeReason")
+                    key = json.dumps(tc["args"], sort_keys=True)
+                    self.assertNotIn(key, vis_args, f"Day {prob['day']} hidden case duplicates visible args: {key}")
+                    self.assertNotIn(key, seen_hid, f"Day {prob['day']} duplicate hidden args: {key}")
+                    seen_hid.add(key)
             self.assertGreaterEqual(len(prob.get("edgeCaseChecklist", [])), 3)
-            seen_funcs.add(prob["funcName"])
 
-        self.assertEqual(len(seen_funcs), 29)
+        self.assertEqual(len(seen_statements), 120)
+        self.assertGreaterEqual(hidden_days, 61)
         self.assertGreaterEqual(len(cd.EDGE_CASE_PLAYBOOK), 9)
         self.assertGreaterEqual(len(cd.EDGE_CASE_RESOURCES), 4)
 
-        # 2. All 29 unique engines pass all sample + compiled hidden edge cases in Python and TypeScript
-        tested = set()
+        # 2. All 15 multi-language days pass Python + TypeScript with >= 5 hidden cases, and bespoke days pass Python with >= 5 hidden cases
         for prob in cd.PROBLEMS:
-            fn = prob["funcName"]
-            if fn in tested:
+            if not prob.get("hiddenTestCases"):
                 continue
-            tested.add(fn)
-            for lang in ("python", "typescript"):
+            langs = ("python", "typescript") if prob["solutionCode"].get("typescript") else ("python",)
+            for lang in langs:
                 res = server.execute_user_code(prob["day"], lang, prob["solutionCode"][lang])
-                self.assertTrue(res.get("ok"), f"Day {prob['day']} {fn} ({lang}) error: {res}")
-                self.assertTrue(res.get("allPassed"), f"Day {prob['day']} {fn} ({lang}) failed: {res}")
+                self.assertTrue(res.get("ok"), f"Day {prob['day']} {prob['funcName']} ({lang}) error: {res}")
+                self.assertTrue(res.get("allPassed"), f"Day {prob['day']} {prob['funcName']} ({lang}) failed: {res}")
                 self.assertGreaterEqual(res.get("hiddenTotal", 0), 5)
                 self.assertEqual(res.get("hiddenPassed"), res.get("hiddenTotal"))
                 hidden_rows = [r for r in res.get("results", []) if r.get("hidden")]
@@ -838,24 +840,21 @@ console.log('ALL_JS_SHORTCUT_CHECKS_OK');
             self.assertEqual(sum(i["gain"] for i in res.get("improvementPlan", [])), gap_sum)
             self.assertEqual(gap_sum, 100 - axis_sum)
 
-        # 1. All 29 unique optimal Python solutions (plus TS/Go spot checks) earn full 100/100 marks
-        seen_funcs = set()
+        # 1. All 120 optimal solutions (Python + SQL Day 115, plus TS/Go spot checks) earn full 100/100 marks
         for prob in cd.PROBLEMS:
+            lang = "sql" if prob.get("isSql") else "python"
             fn = prob["funcName"]
-            if fn in seen_funcs:
-                continue
-            seen_funcs.add(fn)
-            opt_res = server.analyse_user_code(prob["day"], "python", prob["solutionCode"]["python"])
+            opt_res = server.analyse_user_code(prob["day"], lang, prob["solutionCode"][lang])
             assert_rubric_invariants(opt_res)
             self.assertEqual(
                 opt_res["totalScore"],
                 100,
-                f"Day {prob['day']} ({fn}) optimal python did not earn 100/100: {opt_res['improvementPlan']}",
+                f"Day {prob['day']} ({fn}) optimal {lang} did not earn 100/100: {opt_res['improvementPlan']}",
             )
             self.assertEqual(opt_res["improvementPlan"], [])
             self.assertTrue(opt_res.get("followUpStretch"))
 
-        for sample_day in (1, 9, 43, 76):
+        for sample_day in (1, 9, 45, 76):
             prob = cd.PROBLEMS_BY_DAY[sample_day]
             for lang in ("typescript", "go"):
                 res_lang = server.analyse_user_code(sample_day, lang, prob["solutionCode"][lang])
@@ -1935,6 +1934,45 @@ console.log('UNDO_REDO_ENGINE_OK');
 """
         proc = subprocess.run([server.NODE_BIN, "-e", js_check], capture_output=True, text=True, check=True)
         self.assertIn("UNDO_REDO_ENGINE_OK", proc.stdout)
+
+    def test_v235_all_120_days_unique_and_executable(self) -> None:
+        # 1. Zero shared "Daily Focus" placeholders; 120 unique titles, LC IDs, and problem statements
+        self.assertEqual(len(cd.PROBLEMS), 120)
+        self.assertEqual(len({p["title"] for p in cd.PROBLEMS}), 120)
+        self.assertEqual(len({p["leetcodeId"] for p in cd.PROBLEMS}), 120)
+        self.assertEqual(len({p["statement"] for p in cd.PROBLEMS}), 120)
+        for p in cd.PROBLEMS:
+            self.assertNotIn("Daily Focus", p["statement"], f"Day {p['day']} still uses a placeholder template")
+            self.assertTrue((p.get("statement") or "").strip(), f"Day {p['day']} has empty statement")
+
+        # 2. Days 6, 7, and 8 are completely distinct real problems with unique starter code & passing solutions
+        d6, d7, d8 = cd.PROBLEMS_BY_DAY[6], cd.PROBLEMS_BY_DAY[7], cd.PROBLEMS_BY_DAY[8]
+        self.assertEqual(d6["funcName"], "longestConsecutive")
+        self.assertEqual(d7["funcName"], "spiralOrder")
+        self.assertEqual(d8["funcName"], "countPrimes")
+        self.assertEqual(len({d6["statement"], d7["statement"], d8["statement"]}), 3)
+        self.assertEqual(len({d6["starterCode"]["python"], d7["starterCode"]["python"], d8["starterCode"]["python"]}), 3)
+        for p in (d6, d7, d8):
+            res = server.execute_user_code(p["day"], "python", p["solutionCode"]["python"])
+            self.assertTrue(res["ok"] and res["allPassed"], f"Day {p['day']} failed: {res}")
+            tr = server.trace_optimal_solution(p["day"], 0)
+            self.assertTrue(tr["ok"] and len(tr["frames"]) > 0, f"Day {p['day']} trace failed")
+
+        # 3. Day 104 (rolling hash with 3-arg builtin pow) & Day 115 (SQL) & Days 118-120 (FDE) all execute cleanly
+        d104 = cd.PROBLEMS_BY_DAY[104]
+        r104 = server.execute_user_code(104, "python", d104["solutionCode"]["python"])
+        self.assertTrue(r104["ok"] and r104["allPassed"], f"Day 104 failed: {r104}")
+
+        d115 = cd.PROBLEMS_BY_DAY[115]
+        self.assertTrue(d115.get("isSql"))
+        r115 = server.execute_user_code(115, "sql", d115["solutionCode"]["sql"])
+        self.assertTrue(r115["ok"] and r115["allPassed"], f"Day 115 SQL failed: {r115}")
+
+        for fde_day in (118, 119, 120):
+            pf = cd.PROBLEMS_BY_DAY[fde_day]
+            rf = server.execute_user_code(fde_day, "python", pf["solutionCode"]["python"])
+            self.assertTrue(rf["ok"] and rf["allPassed"], f"Day {fde_day} FDE failed: {rf}")
+            self.assertGreaterEqual(rf["hiddenTotal"], 5)
 
 
 if __name__ == "__main__":
