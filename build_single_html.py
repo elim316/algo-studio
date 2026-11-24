@@ -229,6 +229,28 @@ BROWSER_RUNTIME_JS = r'''
       return ordered[(startIdx + 1) % n];
     }
 
+    const __LEGACY_PHASE_DEF_RE = /\b(?:def|function|func)\s+(analyseServiceLogs|coinChange|combinationSum|findRedundantConnection|largestRectangleArea|longestHappyPrefix|maxPointsOnLine|minMeetingRooms|networkDelayTime|predictTheWinner|simulateFenwickRangeSum|simulateLRUCache|simulateTrie|solveArrayHash|solveSlidingWindow|splitArray)\s*\(/g;
+
+    function __isStalePlaceholderDraft(draftKey, code) {
+      if (typeof draftKey !== 'string' || typeof code !== 'string' || !code.trim()) return false;
+      const [dayPart, langPart] = draftKey.split(':');
+      if (!/^\d+$/.test(dayPart || '')) return false;
+      const prob = __problemsByDay[Number(dayPart)];
+      if (!prob) return false;
+      const matches = [];
+      __LEGACY_PHASE_DEF_RE.lastIndex = 0;
+      let m;
+      while ((m = __LEGACY_PHASE_DEF_RE.exec(code)) !== null) matches.push(m[1]);
+      if (!matches.length) return false;
+      if (prob.isSql && langPart !== 'sql') return true;
+      const expFn = String(prob.funcName || '');
+      const expCls = String(prob.harness?.className || '');
+      const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (expFn && new RegExp(`\\b(?:def|function|func)\\s+${escRe(expFn)}\\s*\\(`).test(code)) return false;
+      if (expCls && new RegExp(`\\bclass\\s+${escRe(expCls)}\\b`).test(code)) return false;
+      return matches.some((fn) => fn !== expFn);
+    }
+
     function __loadProgressLocal(autoAdvance = false) {
       let raw = null;
       try {
@@ -281,6 +303,12 @@ BROWSER_RUNTIME_JS = r'''
       if (autoAdvance && base.solvedDays[String(cur)] && Object.keys(base.solvedDays).length < totalProbs) {
         base.currentDay = __nextUnsolvedDay(base.solvedDays, cur);
         mirrored = true;
+      }
+      for (const [dk, dv] of Object.entries(base.drafts || {})) {
+        if (__isStalePlaceholderDraft(dk, String(dv))) {
+          delete base.drafts[dk];
+          mirrored = true;
+        }
       }
       if (mirrored || !raw) __saveProgressLocal(base);
       return base;
@@ -428,12 +456,17 @@ BROWSER_RUNTIME_JS = r'''
         const dInt = Math.max(1, Math.min(totalDays, Math.trunc(Number(body.day || 1))));
         const lang = String(body.language || '').toLowerCase().slice(0, 32);
         if (__ALGO_ALLOWED_LANGS.has(lang)) {
-          prog.drafts[`${dInt}:${lang}`] = String(body.draft || '').slice(0, 200000);
+          const dKey = `${dInt}:${lang}`;
+          const dVal = String(body.draft || '').slice(0, 200000);
+          if (!__isStalePlaceholderDraft(dKey, dVal)) {
+            prog.drafts[dKey] = dVal;
+          }
         }
       }
       if (body.draftsBatch && typeof body.draftsBatch === 'object') {
         for (const [dk, dv] of Object.entries(body.draftsBatch).slice(0, 400)) {
           if (typeof dk === 'string' && dk.length <= 100 && typeof dv === 'string' && dv.trim()) {
+            if (__isStalePlaceholderDraft(dk, dv)) continue;
             if (!prog.drafts[dk] || !String(prog.drafts[dk]).trim()) {
               prog.drafts[dk] = dv.slice(0, 200000);
             }

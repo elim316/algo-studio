@@ -7302,7 +7302,12 @@
 
       const probKey = activeProblemKey(p);
       const draftKey = `${probKey}:${state.activeLang}`;
-      const savedDraft = state.progress.drafts?.[draftKey];
+      let savedDraft = state.progress.drafts?.[draftKey];
+      if (savedDraft && isStalePlaceholderDraftKey(draftKey, savedDraft)) {
+        delete state.progress.drafts[draftKey];
+        savedDraft = '';
+        try { localStorage.setItem('algoStudioDrafts_v1', JSON.stringify(state.progress.drafts || {})); } catch (_) {}
+      }
       const loadedCode = savedDraft || p.starterCode?.[state.activeLang] || '';
       document.getElementById('code-editor').value = loadedCode;
       if (typeof ensureEditorHistoryForActive === 'function') {
@@ -11711,6 +11716,28 @@
       }
     });
 
+    const LEGACY_PHASE_DEF_RE = /\b(?:def|function|func)\s+(analyseServiceLogs|coinChange|combinationSum|findRedundantConnection|largestRectangleArea|longestHappyPrefix|maxPointsOnLine|minMeetingRooms|networkDelayTime|predictTheWinner|simulateFenwickRangeSum|simulateLRUCache|simulateTrie|solveArrayHash|solveSlidingWindow|splitArray)\s*\(/g;
+
+    function isStalePlaceholderDraftKey(draftKey, code) {
+      if (typeof draftKey !== 'string' || typeof code !== 'string' || !code.trim()) return false;
+      const [dayPart, langPart] = draftKey.split(':');
+      if (!/^\d+$/.test(dayPart || '')) return false;
+      const prob = (state.problems || []).find((pr) => Number(pr.day) === Number(dayPart));
+      if (!prob) return false;
+      const matches = [];
+      LEGACY_PHASE_DEF_RE.lastIndex = 0;
+      let m;
+      while ((m = LEGACY_PHASE_DEF_RE.exec(code)) !== null) matches.push(m[1]);
+      if (!matches.length) return false;
+      if (prob.isSql && langPart !== 'sql') return true;
+      const expFn = String(prob.funcName || '');
+      const expCls = String(prob.harness?.className || '');
+      const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (expFn && new RegExp(`\\b(?:def|function|func)\\s+${escRe(expFn)}\\s*\\(`).test(code)) return false;
+      if (expCls && new RegExp(`\\bclass\\s+${escRe(expCls)}\\b`).test(code)) return false;
+      return matches.some((fn) => fn !== expFn);
+    }
+
     async function init() {
       initResizableBoxes();
       const res = await apiGet('/api/state');
@@ -11723,8 +11750,13 @@
         state.progress = res.progress || state.progress;
         state.spacedRepetition = res.spacedRepetition || state.spacedRepetition;
 
-        // Fill any drafts saved locally that the server does not have yet (server progress always wins)
+        // Purge any outdated pre-v2.3.5 shared placeholder drafts and fill missing valid drafts from localStorage
         try {
+          if (state.progress.drafts && typeof state.progress.drafts === 'object') {
+            for (const [k, v] of Object.entries(state.progress.drafts)) {
+              if (isStalePlaceholderDraftKey(k, v)) delete state.progress.drafts[k];
+            }
+          }
           const cachedDraftsRaw = localStorage.getItem('algoStudioDrafts_v1');
           if (cachedDraftsRaw) {
             const cachedDrafts = JSON.parse(cachedDraftsRaw);
@@ -11732,7 +11764,7 @@
               const missingOnServer = {};
               const serverDrafts = state.progress.drafts || {};
               for (const [k, v] of Object.entries(cachedDrafts)) {
-                if (typeof v === 'string' && v.trim() && (!serverDrafts[k] || !String(serverDrafts[k]).trim())) {
+                if (typeof v === 'string' && v.trim() && !isStalePlaceholderDraftKey(k, v) && (!serverDrafts[k] || !String(serverDrafts[k]).trim())) {
                   missingOnServer[k] = v;
                 }
               }

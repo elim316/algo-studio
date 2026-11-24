@@ -186,6 +186,53 @@ def _next_unsolved_day(solved_days: dict[str, Any] | list[Any] | set[Any], after
     return min(total_days, max(1, after_day))
 
 
+_LEGACY_PHASE_FUNCS = frozenset({
+    "analyseServiceLogs",
+    "coinChange",
+    "combinationSum",
+    "findRedundantConnection",
+    "largestRectangleArea",
+    "longestHappyPrefix",
+    "maxPointsOnLine",
+    "minMeetingRooms",
+    "networkDelayTime",
+    "predictTheWinner",
+    "simulateFenwickRangeSum",
+    "simulateLRUCache",
+    "simulateTrie",
+    "solveArrayHash",
+    "solveSlidingWindow",
+    "splitArray",
+})
+_LEGACY_DEF_RE = re.compile(
+    r"\b(?:def|function|func)\s+(" + "|".join(re.escape(x) for x in sorted(_LEGACY_PHASE_FUNCS)) + r")\s*\("
+)
+
+
+def _is_stale_placeholder_draft(draft_key: str, code: str) -> bool:
+    """Detect outdated pre-v2.3.5 shared phase-solver drafts that no longer match a day's problem."""
+    if not isinstance(draft_key, str) or not isinstance(code, str) or not code.strip():
+        return False
+    day_part, _, lang_part = draft_key.partition(":")
+    if not day_part.isdigit():
+        return False
+    prob = cd.PROBLEMS_BY_DAY.get(int(day_part))
+    if not prob:
+        return False
+    matches = [m.group(1) for m in _LEGACY_DEF_RE.finditer(code)]
+    if not matches:
+        return False
+    if prob.get("isSql") and lang_part != "sql":
+        return True
+    exp_fn = str(prob.get("funcName") or "")
+    exp_cls = str((prob.get("harness") or {}).get("className") or "")
+    if exp_fn and re.search(rf"\b(?:def|function|func)\s+{re.escape(exp_fn)}\s*\(", code):
+        return False
+    if exp_cls and re.search(rf"\bclass\s+{re.escape(exp_cls)}\b", code):
+        return False
+    return any(fn != exp_fn for fn in matches)
+
+
 def load_progress(auto_advance: bool = False) -> dict[str, Any]:
     with _PROGRESS_LOCK:
         PROGRESS_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -224,6 +271,12 @@ def load_progress(auto_advance: bool = False) -> dict[str, Any]:
             if auto_advance and str(cur) in solved and len(solved) < len(cd.PROBLEMS):
                 base["currentDay"] = _next_unsolved_day(solved, after_day=cur)
                 mirrored = True
+            drafts_dict = base.get("drafts")
+            if isinstance(drafts_dict, dict):
+                stale_keys = [dk for dk, dv in list(drafts_dict.items()) if _is_stale_placeholder_draft(dk, str(dv))]
+                for sk in stale_keys:
+                    drafts_dict.pop(sk, None)
+                    mirrored = True
             if mirrored:
                 save_progress(base)
             return base
@@ -4275,11 +4328,16 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
                     d_int = _parse_day_field(body["day"])
                     d_lang = _safe_str(body["language"], 32).lower()
                     if d_lang in _ALLOWED_LANGUAGES:
-                        prog.setdefault("drafts", {})[f"{d_int}:{d_lang}"] = _safe_str(body["draft"], _MAX_CODE_CHARS)
+                        d_key = f"{d_int}:{d_lang}"
+                        d_val = _safe_str(body["draft"], _MAX_CODE_CHARS)
+                        if not _is_stale_placeholder_draft(d_key, d_val):
+                            prog.setdefault("drafts", {})[d_key] = d_val
                 if isinstance(body.get("draftsBatch"), dict):
                     drafts_map = prog.setdefault("drafts", {})
                     for dk, dv in list(body["draftsBatch"].items())[:_MAX_DRAFTS_BATCH]:
                         if isinstance(dk, str) and len(dk) <= 100 and isinstance(dv, str) and dv.strip():
+                            if _is_stale_placeholder_draft(dk, dv):
+                                continue
                             if dk not in drafts_map or not str(drafts_map.get(dk, "")).strip():
                                 drafts_map[dk] = dv[:_MAX_CODE_CHARS]
                 if isinstance(body.get("layoutSizes"), dict):

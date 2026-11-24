@@ -2129,6 +2129,19 @@ console.log('UNDO_REDO_ENGINE_OK');
         )
         self.assertTrue(has_tree_node, "Day 33 trace should capture TreeNode heap instances")
 
+        # 8. Outdated pre-v2.3.5 shared phase-solver drafts are automatically purged while real drafts survive
+        stale_code = "def solveArrayHash(nums: list[int], target: int) -> int:\n    # Return max subarray length summing to target in O(N) time\n    pass\n"
+        real_d1 = "def twoSum(nums: list[int], target: int) -> list[int]:\n    return []\n"
+        real_d19 = "def largestRectangleArea(heights: list[int]) -> int:\n    return 0\n"
+        prog = server.load_progress(auto_advance=False)
+        prog["drafts"] = {"1:python": real_d1, "6:python": stale_code, "7:python": stale_code, "19:python": real_d19}
+        server.save_progress(prog)
+        healed = server.load_progress(auto_advance=False)
+        self.assertNotIn("6:python", healed["drafts"])
+        self.assertNotIn("7:python", healed["drafts"])
+        self.assertEqual(healed["drafts"].get("1:python"), real_d1)
+        self.assertEqual(healed["drafts"].get("19:python"), real_d19)
+
 
 if __name__ == "__main__":
     unittest.main()
