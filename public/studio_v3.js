@@ -93,14 +93,28 @@
         border: 1px solid var(--border-col);
         border-radius: var(--radius-sm);
         background: var(--surface-2);
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
       }
       .pt-rich-visual-strip.visible { display: flex; }
       .pt-rich-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        gap: 6px 10px;
         flex-wrap: wrap;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .pt-rich-meta-pills {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+        min-width: 0;
+        max-width: 100%;
       }
       .pt-rich-title {
         font-size: 11.5px;
@@ -698,17 +712,20 @@
       tbody += '</tr>';
     }
 
-    const boundSummary = [
+    const boundParts = [
       topB !== null ? `top=${topB}` : '',
       botB !== null ? `bottom=${botB}` : '',
       leftB !== null ? `left=${leftB}` : '',
       rightB !== null ? `right=${rightB}` : '',
-    ].filter(Boolean).join('  ');
+    ].filter(Boolean);
+    const metaHtml = boundParts.length
+      ? `<div class="pt-rich-meta-pills">${boundParts.map((b) => `<span class="stat-pill tabular" style="font-size:10px; padding:1px 6px;">${esc(b)}</span>`).join('')}</div>`
+      : `<span class="muted tabular" style="font-size:10.5px;">Green cells mutated on this step; outlined cells match active (r, c) or (i, j) cursors</span>`;
 
     return (
       `<div class="pt-rich-header">` +
       `<span class="pt-rich-title">2D Grid / DP Matrix: <code>${esc(mat.name)}</code> <span class="stat-pill tabular">${R} x ${C}</span></span>` +
-      `<span class="muted tabular" style="font-size:10.5px;">${boundSummary ? esc(boundSummary) : 'Green cells mutated on this step; outlined cells match active (r, c) or (i, j) cursors'}</span>` +
+      metaHtml +
       `</div>` +
       `<div class="pt-rich-canvas-scroll"><table class="pt-grid-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`
     );

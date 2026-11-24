@@ -544,9 +544,11 @@
     const ta = document.getElementById('code-editor');
     const hi = document.getElementById('code-highlight-layer');
     const gutter = document.getElementById('line-gutter');
+    const sel = document.getElementById('editor-font-size-select');
     if (ta) ta.style.fontSize = `${clamped}px`;
     if (hi) hi.style.fontSize = `${clamped}px`;
     if (gutter) gutter.style.fontSize = `${Math.max(10, clamped - 1)}px`;
+    if (sel) sel.value = String(clamped);
     try {
       localStorage.setItem('algoStudioEditorFont_v2', String(clamped));
     } catch (_) {}
@@ -2074,8 +2076,7 @@
       }
     });
     document.getElementById('editor-wrap-btn')?.addEventListener('click', toggleEditorWordWrap);
-    document.getElementById('editor-font-dec-btn')?.addEventListener('click', () => applyEditorFontSize(v2State.editorFontSize - 1));
-    document.getElementById('editor-font-inc-btn')?.addEventListener('click', () => applyEditorFontSize(v2State.editorFontSize + 1));
+    document.getElementById('editor-font-size-select')?.addEventListener('change', (e) => applyEditorFontSize(Number(e.target.value)));
 
     // Copy for AI button
     document.getElementById('copy-for-ai-btn')?.addEventListener('click', () => {
