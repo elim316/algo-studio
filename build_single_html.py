@@ -155,6 +155,8 @@ BROWSER_RUNTIME_JS = r'''
         drafts: {},
         submissions: {},
         notes: {},
+        whiteboards: {},
+        flashDrillStats: { attempted: 0, correct: 0, bestStreak: 0 },
         chatHistory: {},
         layoutSizes: {},
         revealedHiddenDays: {},
@@ -251,6 +253,10 @@ BROWSER_RUNTIME_JS = r'''
       if (!base.drafts || typeof base.drafts !== 'object') base.drafts = {};
       if (!base.submissions || typeof base.submissions !== 'object') base.submissions = {};
       if (!base.notes || typeof base.notes !== 'object') base.notes = {};
+      if (!base.whiteboards || typeof base.whiteboards !== 'object') base.whiteboards = {};
+      if (!base.flashDrillStats || typeof base.flashDrillStats !== 'object') {
+        base.flashDrillStats = { attempted: 0, correct: 0, bestStreak: 0 };
+      }
       if (!base.chatHistory || typeof base.chatHistory !== 'object') base.chatHistory = {};
       if (!base.layoutSizes || typeof base.layoutSizes !== 'object') base.layoutSizes = {};
       if (!base.revealedHiddenDays || typeof base.revealedHiddenDays !== 'object') base.revealedHiddenDays = {};
@@ -515,6 +521,41 @@ BROWSER_RUNTIME_JS = r'''
           elapsedMin: Math.max(0, Math.min(600, Math.trunc(Number(r.elapsedMin || 0)))),
         });
         prog.oaHistory = prog.oaHistory.slice(0, 30);
+      }
+
+      if ('whiteboardKey' in body && Array.isArray(body.whiteboardStrokes)) {
+        const wbKey = String(body.whiteboardKey || '').slice(0, 100);
+        if (wbKey) {
+          if (!prog.whiteboards || typeof prog.whiteboards !== 'object') prog.whiteboards = {};
+          const cleanStrokes = [];
+          for (const st of body.whiteboardStrokes.slice(0, 120)) {
+            if (!st || typeof st !== 'object') continue;
+            const stT = String(st.t || 'pen').slice(0, 12);
+            const stC = String(st.c || 'ink').slice(0, 12);
+            if (!['pen', 'arrow', 'box'].includes(stT) || !['ink', 'accent', 'green'].includes(stC) || !Array.isArray(st.pts)) continue;
+            const pts = st.pts
+              .slice(0, 180)
+              .filter((p) => Array.isArray(p) && p.length >= 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
+              .map((p) => [Math.round(Math.max(0, Math.min(1, Number(p[0]))) * 10000) / 10000, Math.round(Math.max(0, Math.min(1, Number(p[1]))) * 10000) / 10000]);
+            if (pts.length) {
+              const entry = { t: stT, c: stC, pts };
+              if (st.lbl) entry.lbl = String(st.lbl).slice(0, 12);
+              cleanStrokes.push(entry);
+            }
+          }
+          if (cleanStrokes.length) prog.whiteboards[wbKey] = cleanStrokes;
+          else delete prog.whiteboards[wbKey];
+        }
+      }
+
+      if (body.saveFlashDrillStats && typeof body.saveFlashDrillStats === 'object') {
+        const fs = body.saveFlashDrillStats;
+        const prev = prog.flashDrillStats || { attempted: 0, correct: 0, bestStreak: 0 };
+        prog.flashDrillStats = {
+          attempted: Math.max(Number(prev.attempted || 0), Math.max(0, Math.min(1000000, Math.trunc(Number(fs.attempted || 0))))),
+          correct: Math.max(Number(prev.correct || 0), Math.max(0, Math.min(1000000, Math.trunc(Number(fs.correct || 0))))),
+          bestStreak: Math.max(Number(prev.bestStreak || 0), Math.max(0, Math.min(100000, Math.trunc(Number(fs.bestStreak || 0))))),
+        };
       }
 
       if (body.saveAcceptedSubmission && typeof body.saveAcceptedSubmission === 'object') {
@@ -911,6 +952,16 @@ pyodide_shim.install_browser_patches()
           const masked = k.length >= 10 ? `${k.slice(0, 4)}...${k.slice(-4)}` : (k ? '****' : '');
           return { ok: true, configured: Boolean(k), masked, source: k ? 'browser' : 'none' };
         }
+        if (cleanPath === '/api/gist-sync/status') {
+          let cfg = { token: '', gistId: '', lastSyncedAt: '' };
+          try {
+            const raw = JSON.parse(localStorage.getItem('algoStudioGistSync_v1') || '{}');
+            if (raw && typeof raw === 'object') cfg = Object.assign(cfg, raw);
+          } catch (_) {}
+          const tok = String(cfg.token || '').trim();
+          const masked = tok.length >= 10 ? `${tok.slice(0, 4)}...${tok.slice(-4)}` : (tok ? '****' : '');
+          return { ok: true, configured: Boolean(tok), gistId: String(cfg.gistId || ''), masked, lastSyncedAt: String(cfg.lastSyncedAt || '') };
+        }
         if (cleanPath === '/api/curated') {
           return {
             ok: true,
@@ -958,6 +1009,9 @@ pyodide_shim.install_browser_patches()
           const masked = `${rawKey.slice(0, 4)}...${rawKey.slice(-4)}`;
           return { ok: true, configured: true, masked, source: 'browser' };
         }
+        if (cleanPath === '/api/gist-sync') {
+          return await __handleBrowserGistSync(body || {});
+        }
         // Native offline TypeScript execution without loading Pyodide when running standard test cases
         if (
           cleanPath === '/api/run' &&
@@ -988,6 +1042,151 @@ pyodide_shim.install_browser_patches()
       } catch (err) {
         return { ok: false, error: String(err?.message || err) };
       }
+    }
+
+    function __mergeProgressDicts(localProg, remoteProg) {
+      const merged = JSON.parse(JSON.stringify(localProg || __defaultProgress()));
+      const rem = remoteProg && typeof remoteProg === 'object' ? remoteProg : {};
+      const mergeSolved = (dst, src) => {
+        const out = Object.assign({}, dst || {});
+        for (const [k, v] of Object.entries(src || {})) {
+          if (!(k in out) || (v && out[k] && String(v.solvedAt || '') > String(out[k].solvedAt || ''))) {
+            out[k] = JSON.parse(JSON.stringify(v));
+          }
+        }
+        return out;
+      };
+      merged.solvedDays = mergeSolved(merged.solvedDays, rem.solvedDays);
+      merged.solvedLcIds = mergeSolved(merged.solvedLcIds, rem.solvedLcIds);
+      const bms = Array.isArray(merged.bookmarks) ? merged.bookmarks.slice() : [];
+      const bmSet = new Set(bms);
+      for (const b of (Array.isArray(rem.bookmarks) ? rem.bookmarks : [])) {
+        if (!bmSet.has(b)) { bms.push(b); bmSet.add(b); }
+      }
+      merged.bookmarks = bms.slice(0, 500);
+      const subs = Object.assign({}, merged.submissions || {});
+      for (const [k, rList] of Object.entries(rem.submissions || {})) {
+        if (!Array.isArray(rList)) continue;
+        const cur = Array.isArray(subs[k]) ? subs[k].slice() : [];
+        const seen = new Set(cur.map((x) => `${x?.language || ''}::${String(x?.code || '').trim()}`));
+        for (const item of rList) {
+          const sig = `${item?.language || ''}::${String(item?.code || '').trim()}`;
+          if (!seen.has(sig)) { cur.push(JSON.parse(JSON.stringify(item))); seen.add(sig); }
+        }
+        cur.sort((a, b) => String(b?.submittedAt || '').localeCompare(String(a?.submittedAt || '')));
+        subs[k] = cur.slice(0, 15);
+      }
+      merged.submissions = subs;
+      for (const dk of ['drafts', 'notes', 'whiteboards', 'revealedHiddenDays', 'coursePositions', 'pressureScores']) {
+        const dst = Object.assign({}, merged[dk] || {});
+        for (const [k, v] of Object.entries(rem[dk] || {})) {
+          if (!(k in dst) || !dst[k]) dst[k] = JSON.parse(JSON.stringify(v));
+        }
+        merged[dk] = dst;
+      }
+      const lf = merged.flashDrillStats || {};
+      const rf = rem.flashDrillStats || {};
+      merged.flashDrillStats = {
+        attempted: Math.max(Number(lf.attempted || 0), Number(rf.attempted || 0)),
+        correct: Math.max(Number(lf.correct || 0), Number(rf.correct || 0)),
+        bestStreak: Math.max(Number(lf.bestStreak || 0), Number(rf.bestStreak || 0)),
+      };
+      merged.streak = Math.max(Number(merged.streak || 1), Number(rem.streak || 1));
+      if (String(rem.lastActiveDate || '') > String(merged.lastActiveDate || '')) {
+        merged.lastActiveDate = rem.lastActiveDate;
+      }
+      return merged;
+    }
+
+    async function __handleBrowserGistSync(body) {
+      const action = String(body.action || 'status').toLowerCase();
+      let cfg = { token: '', gistId: '', lastSyncedAt: '' };
+      try {
+        const raw = JSON.parse(localStorage.getItem('algoStudioGistSync_v1') || '{}');
+        if (raw && typeof raw === 'object') cfg = Object.assign(cfg, raw);
+      } catch (_) {}
+      if (action === 'disconnect') {
+        try { localStorage.removeItem('algoStudioGistSync_v1'); } catch (_) {}
+        return { ok: true, configured: false, gistId: '', masked: '', lastSyncedAt: '' };
+      }
+      const token = String(body.token || '').trim() || String(cfg.token || '').trim();
+      let gistId = String(body.gistId || '').trim() || String(cfg.gistId || '').trim();
+      const masked = token.length >= 10 ? `${token.slice(0, 4)}...${token.slice(-4)}` : (token ? '****' : '');
+      if (!token) return { ok: false, error: 'Enter a GitHub Personal Access Token with gist scope first.' };
+      if (gistId && !/^[A-Za-z0-9]{6,64}$/.test(gistId)) {
+        return { ok: false, error: 'Invalid Gist ID format. Use the alphanumeric ID from your Gist URL or leave blank to create a new private Gist.' };
+      }
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      };
+      const filename = 'algo-studio-progress.json';
+      let remoteProg = {};
+      if (gistId) {
+        const resp = await fetch(`https://api.github.com/gists/${gistId}`, { method: 'GET', headers });
+        if (!resp.ok) {
+          const errJson = await resp.json().catch(() => ({}));
+          return { ok: false, error: `GitHub API HTTP ${resp.status}: ${errJson.message || 'Could not fetch Gist.'}` };
+        }
+        const gData = await resp.json();
+        const files = gData?.files || {};
+        const fObj = files[filename] || Object.values(files)[0];
+        if (fObj?.content) {
+          try {
+            const parsed = JSON.parse(fObj.content);
+            if (parsed && typeof parsed === 'object') remoteProg = parsed;
+          } catch (_) {}
+        }
+      }
+      const localProg = __loadProgressLocal(false);
+      const merged = __mergeProgressDicts(localProg, remoteProg);
+      const nowStamp = __utcStampStr();
+      if (action === 'pull') {
+        if (!gistId) return { ok: false, error: 'Enter an existing Gist ID to pull progress from another device.' };
+        __saveProgressLocal(merged);
+        try { localStorage.setItem('algoStudioGistSync_v1', JSON.stringify({ token, gistId, lastSyncedAt: nowStamp })); } catch (_) {}
+        return {
+          ok: true,
+          configured: true,
+          gistId,
+          masked,
+          lastSyncedAt: nowStamp,
+          progress: merged,
+          tags: __computeTagStats(merged.solvedDays),
+          spacedRepetition: __computeSpacedRepetition(merged),
+          summary: `Pulled & merged (${Object.keys(merged.solvedDays || {}).length} days, ${Object.keys(merged.solvedLcIds || {}).length} LC problems).`,
+        };
+      }
+      const cleanPayload = {};
+      for (const [k, v] of Object.entries(merged)) {
+        if (!/key|token/i.test(k)) cleanPayload[k] = v;
+      }
+      const gistBody = {
+        description: 'Algo Studio cross-device progress sync (private)',
+        public: false,
+        files: { [filename]: { content: JSON.stringify(cleanPayload, null, 2) } },
+      };
+      const url = gistId ? `https://api.github.com/gists/${gistId}` : 'https://api.github.com/gists';
+      const resp = await fetch(url, { method: gistId ? 'PATCH' : 'POST', headers, body: JSON.stringify(gistBody) });
+      const resData = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        return { ok: false, error: `GitHub API HTTP ${resp.status}: ${resData.message || 'Gist sync failed.'}` };
+      }
+      gistId = String(resData.id || gistId);
+      __saveProgressLocal(merged);
+      try { localStorage.setItem('algoStudioGistSync_v1', JSON.stringify({ token, gistId, lastSyncedAt: nowStamp })); } catch (_) {}
+      return {
+        ok: true,
+        configured: true,
+        gistId,
+        masked,
+        lastSyncedAt: nowStamp,
+        progress: merged,
+        tags: __computeTagStats(merged.solvedDays),
+        spacedRepetition: __computeSpacedRepetition(merged),
+        summary: `Synced to private Gist (${Object.keys(merged.solvedDays || {}).length} days, ${Object.keys(merged.solvedLcIds || {}).length} LC problems).`,
+      };
     }
 
     function __wireBackupRestoreButtons() {
@@ -1230,6 +1429,7 @@ def build_single_html(output_path: Path | None = None, pwa_mode: bool = False) -
     out_file = output_path or (ROOT_DIR / "AlgoStudio.html")
     index_html = (ROOT_DIR / "public" / "index.html").read_text(encoding="utf-8")
     studio_v2_js = (ROOT_DIR / "public" / "studio_v2.js").read_text(encoding="utf-8")
+    studio_v3_js = (ROOT_DIR / "public" / "studio_v3.js").read_text(encoding="utf-8")
     favicon_bytes = (ROOT_DIR / "public" / "favicon.svg").read_bytes()
     favicon_data_uri = "data:image/svg+xml;base64," + base64.b64encode(favicon_bytes).decode("ascii")
 
@@ -1254,6 +1454,7 @@ def build_single_html(output_path: Path | None = None, pwa_mode: bool = False) -
     py_files = {
         "curriculum_data.py": CURRICULUM_STUB_PY,
         "curated_lists.py": (ROOT_DIR / "curated_lists.py").read_text(encoding="utf-8"),
+        "algo_studio_v3.py": (ROOT_DIR / "algo_studio_v3.py").read_text(encoding="utf-8"),
         "server.py": (ROOT_DIR / "server.py").read_text(encoding="utf-8"),
         "pyodide_shim.py": (ROOT_DIR / "pyodide_shim.py").read_text(encoding="utf-8"),
     }
@@ -1316,7 +1517,7 @@ def build_single_html(output_path: Path | None = None, pwa_mode: bool = False) -
     )
     html = html.replace(main_script_anchor, bundles_html + main_script_anchor, 1)
 
-    # 7. Inline studio_v2.js BEFORE booting init() so StudioV2 is guaranteed ready
+    # 7. Inline studio_v2.js and studio_v3.js BEFORE booting init() so both are guaranteed ready
     tail_anchor = (
         "    init();\n"
         "    if ('serviceWorker' in navigator && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {\n"
@@ -1324,12 +1525,14 @@ def build_single_html(output_path: Path | None = None, pwa_mode: bool = False) -
         "    }\n"
         "  </script>\n"
         '  <script src="/studio_v2.js"></script>\n'
+        '  <script src="/studio_v3.js"></script>\n'
         "</body>"
     )
     if tail_anchor not in html:
         raise RuntimeError("Could not locate tail script block in public/index.html")
 
     safe_studio_v2_js = studio_v2_js.replace("</script", "<\\/script")
+    safe_studio_v3_js = studio_v3_js.replace("</script", "<\\/script")
     pwa_tail_js = PWA_UPDATER_JS if pwa_mode else ""
     tail_repl = (
         "    __wireBackupRestoreButtons();\n"
@@ -1337,6 +1540,9 @@ def build_single_html(output_path: Path | None = None, pwa_mode: bool = False) -
         "  </script>\n"
         "  <script>\n"
         + safe_studio_v2_js
+        + "\n  </script>\n"
+        "  <script>\n"
+        + safe_studio_v3_js
         + "\n  </script>\n"
         "  <script>\n"
         "    window.AlgoStudioBridge.bootSingleFile();\n"

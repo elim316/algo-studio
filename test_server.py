@@ -1974,6 +1974,161 @@ console.log('UNDO_REDO_ENGINE_OK');
             self.assertTrue(rf["ok"] and rf["allPassed"], f"Day {fde_day} FDE failed: {rf}")
             self.assertGreaterEqual(rf["hiddenTotal"], 5)
 
+    def test_v240_hidden_58_big_o_flash_think_aloud_gist_and_visuals(self) -> None:
+        import http.client
+        import json
+        import threading
+        import algo_studio_v3 as v3
+        import pyodide_shim
+
+        # 1. ALL 119 coding days have >= 5 categorised hidden edge cases
+        coding_days = [p for p in cd.PROBLEMS if not p.get("isSql")]
+        self.assertEqual(len(coding_days), 119)
+        for p in coding_days:
+            hid = p.get("hiddenTestCases") or []
+            self.assertGreaterEqual(len(hid), 5, f"Day {p['day']} ({p['title']}) has only {len(hid)} hidden cases")
+            self.assertTrue(all(tc.get("hidden") and tc.get("category") and tc.get("edgeReason") for tc in hid))
+
+        # 2. Empirical Big-O scaling benchmark distinguishes O(N) vs O(N^2) on Day 1 Two Sum
+        d1 = cd.PROBLEMS_BY_DAY[1]
+        opt_bench = v3.run_complexity_benchmark(d1, "python", d1["solutionCode"]["python"], python_bin=server.PYTHON_BIN)
+        self.assertTrue(opt_bench["ok"], opt_bench)
+        self.assertEqual(len(opt_bench["points"]), 4)
+        self.assertIn(opt_bench["detectedClass"], ("O(1)", "O(log N)", "O(N)", "O(N log N)"))
+        self.assertEqual(opt_bench["status"], "optimal")
+
+        brute_two_sum = (
+            "def twoSum(nums: list[int], target: int) -> list[int]:\n"
+            "    for i in range(len(nums)):\n"
+            "        for j in range(i + 1, len(nums)):\n"
+            "            if nums[i] + nums[j] == target:\n"
+            "                return [i, j]\n"
+            "    return []\n"
+        )
+        slow_bench = v3.run_complexity_benchmark(d1, "python", brute_two_sum, python_bin=server.PYTHON_BIN)
+        self.assertTrue(slow_bench["ok"], slow_bench)
+        self.assertEqual(slow_bench["detectedClass"], "O(N^2)")
+        self.assertEqual(slow_bench["status"], "slower")
+
+        # 3. 3-way non-destructive progress merge preserves solved items, whiteboards, and flash stats from both sides
+        merged = v3.merge_progress_dicts(
+            {
+                "solvedDays": {"1": {"solvedAt": "2026-11-20 10:00 UTC", "rating": "Good"}},
+                "bookmarks": ["day-1"],
+                "whiteboards": {"day-1": [{"t": "pen", "c": "ink", "pts": [[0.1, 0.1], [0.2, 0.2]]}]},
+                "flashDrillStats": {"attempted": 10, "correct": 8, "bestStreak": 5},
+            },
+            {
+                "solvedDays": {"7": {"solvedAt": "2026-11-22 10:00 UTC", "rating": "Easy"}},
+                "bookmarks": ["day-1", "day-7"],
+                "whiteboards": {"day-7": [{"t": "box", "c": "accent", "pts": [[0.2, 0.2], [0.4, 0.4]]}]},
+                "flashDrillStats": {"attempted": 15, "correct": 12, "bestStreak": 7},
+            },
+        )
+        self.assertEqual(set(merged["solvedDays"].keys()), {"1", "7"})
+        self.assertEqual(merged["bookmarks"], ["day-1", "day-7"])
+        self.assertIn("day-1", merged["whiteboards"])
+        self.assertIn("day-7", merged["whiteboards"])
+        self.assertEqual(merged["flashDrillStats"]["bestStreak"], 7)
+
+        # 4. Think-Aloud communication grader scores 4 pillars accurately
+        strong_talk = (
+            "First let me clarify constraints: can the array be empty or contain negative numbers or duplicates? "
+            "A naive brute force loop is O(N^2) time, so instead we can optimise with a hash map invariant "
+            "achieving O(N) time complexity and O(N) space complexity. Let me walk through Example 1 step by step "
+            "checking each index and returning early on the edge case."
+        )
+        ta_good = v3.grade_think_aloud_transcript(d1, strong_talk)
+        self.assertTrue(ta_good["ok"])
+        self.assertEqual(ta_good["communicationScore"], 100)
+        self.assertEqual(ta_good["missingPrompts"], [])
+
+        ta_empty = v3.grade_think_aloud_transcript(d1, "")
+        self.assertEqual(ta_empty["communicationScore"], 0)
+        self.assertEqual(len(ta_empty["missingPrompts"]), 4)
+
+        # 5. Live HTTP routes + /api/progress persistence for whiteboards & flashDrillStats + Pyodide dispatch
+        srv = server._ReusableThreadingHTTPServer(("127.0.0.1", 0), server.AlgoStudioHandler)
+        port = srv.server_address[1]
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
+            try:
+                conn.request("GET", "/api/gist-sync/status")
+                r0 = conn.getresponse()
+                p0 = json.loads(r0.read().decode("utf-8"))
+                self.assertEqual(r0.status, 200)
+                self.assertTrue(p0["ok"])
+
+                conn.request("GET", "/studio_v3.js")
+                r_js = conn.getresponse()
+                js_txt = r_js.read().decode("utf-8")
+                self.assertEqual(r_js.status, 200)
+                self.assertIn("window.StudioV3", js_txt)
+
+                body_b = json.dumps({"day": 1, "language": "python", "code": d1["solutionCode"]["python"]}).encode("utf-8")
+                conn.request("POST", "/api/complexity-bench", body=body_b, headers={"Content-Type": "application/json"})
+                rb = conn.getresponse()
+                pb = json.loads(rb.read().decode("utf-8"))
+                self.assertEqual(rb.status, 200)
+                self.assertTrue(pb["ok"])
+
+                body_t = json.dumps({"day": 1, "transcript": strong_talk}).encode("utf-8")
+                conn.request("POST", "/api/grade-think-aloud", body=body_t, headers={"Content-Type": "application/json"})
+                rt = conn.getresponse()
+                pt = json.loads(rt.read().decode("utf-8"))
+                self.assertEqual(rt.status, 200)
+                self.assertEqual(pt["communicationScore"], 100)
+
+                body_p = json.dumps({
+                    "whiteboardKey": "day-7",
+                    "whiteboardStrokes": [{"t": "arrow", "c": "accent", "pts": [[0.1, 0.2], [0.7, 0.8]]}],
+                    "saveFlashDrillStats": {"attempted": 5, "correct": 4, "bestStreak": 3},
+                }).encode("utf-8")
+                conn.request("POST", "/api/progress", body=body_p, headers={"Content-Type": "application/json"})
+                rp = conn.getresponse()
+                pp = json.loads(rp.read().decode("utf-8"))
+                self.assertEqual(rp.status, 200)
+                self.assertEqual(len(pp["progress"]["whiteboards"]["day-7"]), 1)
+                self.assertEqual(pp["progress"]["flashDrillStats"]["correct"], 4)
+            finally:
+                conn.close()
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        # 6. Pyodide single-file dispatch works cleanly for /api/complexity-bench & /api/grade-think-aloud
+        import subprocess as _sp
+        orig_sp_run, orig_ts, orig_go, orig_patched = _sp.run, server._run_typescript, server._run_go, pyodide_shim._PATCHED
+        try:
+            py_bench = json.loads(pyodide_shim.dispatch_api(
+                "/api/complexity-bench",
+                json.dumps({"day": 1, "language": "python", "code": d1["solutionCode"]["python"]}),
+            ))
+            self.assertTrue(py_bench.get("ok"), py_bench)
+            py_ta = json.loads(pyodide_shim.dispatch_api(
+                "/api/grade-think-aloud",
+                json.dumps({"day": 1, "transcript": strong_talk}),
+            ))
+            self.assertEqual(py_ta.get("communicationScore"), 100)
+        finally:
+            _sp.run = orig_sp_run
+            server._run_typescript = orig_ts
+            server._run_go = orig_go
+            pyodide_shim._PATCHED = orig_patched
+
+        # 7. Deeper TreeNode snapshot capture on Day 33 Max Depth (tree depth >= 3)
+        d33 = cd.PROBLEMS_BY_DAY[33]
+        tr33 = server.trace_optimal_solution(33, 0)
+        self.assertTrue(tr33["ok"] and len(tr33["frames"]) > 0)
+        has_tree_node = any(
+            obj.get("className") == "TreeNode"
+            for fr in tr33["frames"]
+            for obj in (fr.get("heapObjects") or [])
+        )
+        self.assertTrue(has_tree_node, "Day 33 trace should capture TreeNode heap instances")
+
 
 if __name__ == "__main__":
     unittest.main()

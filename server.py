@@ -37,12 +37,14 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+import algo_studio_v3 as v3
 import curriculum_data as cd
 import curated_lists as cl
 
 PUBLIC_DIR = ROOT_DIR / "public"
 DATA_DIR = Path(os.environ.get("ALGO_STUDIO_DATA_DIR") or (ROOT_DIR / "data"))
 PROGRESS_PATH = DATA_DIR / "progress.json"
+GIST_SYNC_PATH = DATA_DIR / ".github_gist_sync.json"
 
 
 def _detect_node_bin() -> str:
@@ -163,6 +165,8 @@ def _default_progress() -> dict[str, Any]:
         "drafts": {},
         "submissions": {},
         "notes": {},
+        "whiteboards": {},
+        "flashDrillStats": {"attempted": 0, "correct": 0, "bestStreak": 0},
         "chatHistory": {},
         "layoutSizes": {},
         "revealedHiddenDays": {},
@@ -637,7 +641,7 @@ def _run_python(func_name: str, code: str, test_cases: list[dict[str, Any]]) -> 
         "    except Exception:\n"
         "        return '<unprintable>'\n\n"
         "def _json_val(val, depth=0):\n"
-        "    if depth > 2:\n"
+        "    if depth > 3:\n"
         "        return _safe_repr(val)\n"
         "    if val is None or isinstance(val, (bool, int, float)):\n"
         "        return val\n"
@@ -672,7 +676,7 @@ def _run_python(func_name: str, code: str, test_cases: list[dict[str, Any]]) -> 
         "                tname = type(v).__name__\n"
         "                els = [_json_val(x) for x in list(v)[:16]]\n"
         "                heap_objects.append({'id': hid, 'type': tname, 'elements': els})\n"
-        "            elif hasattr(v, '__dict__') and depth < 4:\n"
+        "            elif hasattr(v, '__dict__') and depth < 6 and len(heap_objects) < 80:\n"
         "                placeholder = {'id': hid, 'type': 'instance', 'className': type(v).__name__, 'fields': []}\n"
         "                heap_objects.append(placeholder)\n"
         "                fields = []\n"
@@ -4002,6 +4006,10 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if route == "/api/gist-sync/status":
+            self._send_json(v3.sync_github_gist_local("status", {}, GIST_SYNC_PATH))
+            return
+
         if route == "/api/export-progress":
             prog = load_progress(auto_advance=False)
             body = (json.dumps(prog, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
@@ -4135,6 +4143,46 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
             lang = _safe_str(body.get("language", "python"), 32).lower()
             code = _safe_str(body.get("code", ""), _MAX_CODE_CHARS)
             self._send_json(run_fde_stress_test(day, lang, code))
+            return
+
+        if route == "/api/complexity-bench":
+            problem_id = body.get("problemId")
+            lang = _safe_str(body.get("language", "python"), 32).lower()
+            code = _safe_str(body.get("code", ""), _MAX_CODE_CHARS)
+            if problem_id:
+                prob = cl.get_problem(_safe_str(problem_id, 100))
+            else:
+                prob = cd.PROBLEMS_BY_DAY.get(_parse_day_field(body.get("day", 1)))
+            if not prob:
+                self._send_json({"ok": False, "error": "Unknown problem"}, status=404)
+                return
+            self._send_json(v3.run_complexity_benchmark(prob, lang, code, python_bin=PYTHON_BIN))
+            return
+
+        if route == "/api/grade-think-aloud":
+            problem_id = body.get("problemId")
+            transcript = _safe_str(body.get("transcript", ""), 24000)
+            if problem_id:
+                prob = cl.get_problem(_safe_str(problem_id, 100)) or {}
+            else:
+                prob = cd.PROBLEMS_BY_DAY.get(_parse_day_field(body.get("day", 1))) or {}
+            self._send_json(v3.grade_think_aloud_transcript(prob, transcript))
+            return
+
+        if route == "/api/gist-sync":
+            action = _safe_str(body.get("action", "status"), 24).lower()
+            token = _safe_str(body.get("token", ""), 256).strip()
+            gist_id = _safe_str(body.get("gistId", ""), 80).strip()
+            with _PROGRESS_LOCK:
+                prog = load_progress(auto_advance=False)
+                res = v3.sync_github_gist_local(action, prog, GIST_SYNC_PATH, token_override=token, gist_id_override=gist_id)
+                if res.get("ok") and isinstance(res.get("mergedProgress"), dict):
+                    merged_prog = res.pop("mergedProgress")
+                    save_progress(merged_prog)
+                    res["progress"] = merged_prog
+                    res["tags"] = compute_tag_stats(merged_prog.get("solvedDays", {}))
+                    res["spacedRepetition"] = compute_spaced_repetition_insights(merged_prog)
+            self._send_json(res)
             return
 
         if route == "/api/analyse":
@@ -4298,6 +4346,41 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
                     oh = list(prog.get("oaHistory") or [])
                     oh.insert(0, _sanitize_oa_record(body["saveOaRecord"]))
                     prog["oaHistory"] = oh[:30]
+                if "whiteboardKey" in body and isinstance(body.get("whiteboardStrokes"), list):
+                    wb_key = _safe_str(body["whiteboardKey"], 100)
+                    if wb_key:
+                        clean_strokes = []
+                        for st in body["whiteboardStrokes"][:120]:
+                            if not isinstance(st, dict):
+                                continue
+                            st_t = _safe_str(st.get("t", "pen"), 12)
+                            st_c = _safe_str(st.get("c", "ink"), 12)
+                            raw_pts = st.get("pts")
+                            if st_t not in ("pen", "arrow", "box") or st_c not in ("ink", "accent", "green") or not isinstance(raw_pts, list):
+                                continue
+                            pts = [
+                                [round(max(0.0, min(1.0, float(p[0]))), 4), round(max(0.0, min(1.0, float(p[1]))), 4)]
+                                for p in raw_pts[:180]
+                                if isinstance(p, (list, tuple)) and len(p) >= 2 and isinstance(p[0], (int, float)) and isinstance(p[1], (int, float))
+                            ]
+                            if pts:
+                                entry_s: dict[str, Any] = {"t": st_t, "c": st_c, "pts": pts}
+                                if st.get("lbl"):
+                                    entry_s["lbl"] = _safe_str(st["lbl"], 12)
+                                clean_strokes.append(entry_s)
+                        wb_map = prog.setdefault("whiteboards", {})
+                        if clean_strokes:
+                            wb_map[wb_key] = clean_strokes
+                        else:
+                            wb_map.pop(wb_key, None)
+                if isinstance(body.get("saveFlashDrillStats"), dict):
+                    fs = body["saveFlashDrillStats"]
+                    prev_fs = prog.get("flashDrillStats") or {}
+                    prog["flashDrillStats"] = {
+                        "attempted": max(int(prev_fs.get("attempted", 0)), max(0, min(1_000_000, _parse_int_field(fs.get("attempted", 0), name="attempted")))),
+                        "correct": max(int(prev_fs.get("correct", 0)), max(0, min(1_000_000, _parse_int_field(fs.get("correct", 0), name="correct")))),
+                        "bestStreak": max(int(prev_fs.get("bestStreak", 0)), max(0, min(100_000, _parse_int_field(fs.get("bestStreak", 0), name="bestStreak")))),
+                    }
                 if isinstance(body.get("saveAcceptedSubmission"), dict):
                     sanitized_sub = _sanitize_accepted_submission(body["saveAcceptedSubmission"])
                     if sanitized_sub is not None:
@@ -4417,7 +4500,10 @@ class AlgoStudioHandler(BaseHTTPRequestHandler):
 def _watch_self() -> None:
     watched = [
         Path(__file__).resolve(),
+        ROOT_DIR / "algo_studio_v3.py",
         ROOT_DIR / "curriculum_data.py",
+        ROOT_DIR / "curriculum_extra_46.py",
+        ROOT_DIR / "curated_hidden_58.py",
         ROOT_DIR / "curated_lists.py",
         ROOT_DIR / "curated_catalog.json",
         ROOT_DIR / "edge_cases_data.py",

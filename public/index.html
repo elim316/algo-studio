@@ -6029,6 +6029,7 @@
           `</div>`;
         objectsCol.innerHTML = previewSnap.heapObjects.map((o) => renderHeapObjectHtml(o)).join('');
         requestAnimationFrame(drawPythonTutorArrows);
+        window.StudioV3?.onVisualiserFrame?.(previewSnap, null);
         return;
       }
 
@@ -6138,6 +6139,7 @@
       objectsCol.innerHTML = (frame.heapObjects || []).map((o) => renderHeapObjectHtml(o, prevHeapMap, pointerIndexMap)).join('');
 
       requestAnimationFrame(drawPythonTutorArrows);
+      window.StudioV3?.onVisualiserFrame?.(frame, prevFrame);
     }
 
     function stopVisualiserPlayback() {
@@ -11815,5 +11817,6 @@
     }
   </script>
   <script src="/studio_v2.js"></script>
+  <script src="/studio_v3.js"></script>
 </body>
 </html>

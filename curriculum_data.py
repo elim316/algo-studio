@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from curated_hidden_58 import CURATED_HIDDEN_58
 from curriculum_extra_46 import EXTRA_46_PROBLEMS
 from edge_cases_data import (
     EDGE_CASE_PLAYBOOK,
@@ -1633,6 +1634,7 @@ def _build_full_problem(sched: dict[str, Any]) -> dict[str, Any]:
         signal = bp.get("signal") or cur_mm.get("triggerSignal") or ""
         raw_tcs = list(cur_copy.get("testCases") or [])
         vis_tcs = [dict(tc, hidden=False) for tc in raw_tcs]
+        hid_tcs = copy.deepcopy(CURATED_HIDDEN_58.get(day, []))
         is_sql = bool(cur_copy.get("isSql"))
         func_name = cur_copy.get("funcName") or (
             f"sql_day_{day}" if is_sql else (cur_copy.get("harness") or {}).get("methodName") or f"solve_day_{day}"
@@ -1674,8 +1676,8 @@ def _build_full_problem(sched: dict[str, Any]) -> dict[str, Any]:
                 "answer": "Expect follow-ups around streaming inputs, bounded memory, concurrency, or custom tie-breaking requirements.",
             },
             "visibleTestCases": vis_tcs,
-            "hiddenTestCases": [],
-            "testCases": vis_tcs,
+            "hiddenTestCases": hid_tcs,
+            "testCases": vis_tcs + hid_tcs,
             "edgeCaseChecklist": get_edge_case_checklist_for_tags(sched["tags"]),
         }
         for opt_key in ("approaches", "beginnerGuide", "companies", "sqlSchema", "referenceSql", "schemaTables"):

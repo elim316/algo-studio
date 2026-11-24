@@ -1107,6 +1107,7 @@
     } else if (mode === 'exam') {
       renderExamPanel();
     }
+    window.StudioV3?.onCoachModeChanged?.(mode);
   }
 
   /* ==========================================================================
@@ -2017,6 +2018,7 @@
       v2State.exam.oaActive = false;
       renderExamPanel();
     });
+    window.StudioV3?.onExamRendered?.(v2State.exam, panel);
   }
 
   /* ==========================================================================
@@ -2174,6 +2176,7 @@
       bridge.populateSelectors();
       onActiveProblemRendered(bridge.currentProblem());
     }
+    window.StudioV3?.init?.();
   }
 
   function onActiveProblemRendered(p) {
@@ -2187,6 +2190,7 @@
       v2State.pressure.finished = false;
       renderPressurePanel();
     }
+    window.StudioV3?.onActiveProblemRendered?.(p);
   }
 
   function onProgressUpdated() {
